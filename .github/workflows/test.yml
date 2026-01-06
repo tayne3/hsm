@@ -34,7 +34,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            generator: "Unix Makefiles"
+          - os: windows-latest
+            generator: "Visual Studio 17 2022"
+          - os: macos-latest
+            generator: "Unix Makefiles"
 
     steps:
       - name: Checkout code
@@ -43,6 +49,7 @@ jobs:
       - name: Configure CMake
         run: >
           cmake -S . -B build
+          -G "${{ matrix.generator }}"
           -DCMAKE_BUILD_TYPE=Release
           -DSMF_BUILD_TEST=ON
 
