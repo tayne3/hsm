@@ -8,6 +8,23 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef SMF_API
+#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(SMF_LIB_EXPORT)
+#define SMF_API __declspec(dllexport)
+#elif defined(SMF_SHARED)
+#define SMF_API __declspec(dllimport)
+#endif
+#elif defined(__GNUC__) || defined(__clang__)
+#if defined(SMF_LIB_EXPORT) || defined(SMF_SHARED)
+#define SMF_API __attribute__((visibility("default")))
+#endif
+#endif
+#endif
+#ifndef SMF_API
+#define SMF_API
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -101,7 +118,7 @@ typedef struct smf_state {
  * @param init_state Initial state for the state machine (cannot be NULL)
  * @return           0 on success, -1 on failure
  */
-int smf_set_initial(smf_ctx_t *ctx, const smf_state_t *init_state, void *userdata);
+SMF_API int smf_set_initial(smf_ctx_t *ctx, const smf_state_t *init_state, void *userdata);
 
 /**
  * @brief Changes the state machine's state. This handles exiting the previous state
@@ -112,7 +129,7 @@ int smf_set_initial(smf_ctx_t *ctx, const smf_state_t *init_state, void *userdat
  * @param new_state State to transition to (cannot be NULL)
  * @return          0 on success, -1 on failure
  */
-int smf_set_state(smf_ctx_t *ctx, const smf_state_t *new_state);
+SMF_API int smf_set_state(smf_ctx_t *ctx, const smf_state_t *new_state);
 
 /**
  * @brief Terminates the state machine.
@@ -120,7 +137,7 @@ int smf_set_state(smf_ctx_t *ctx, const smf_state_t *new_state);
  * @param ctx  State machine context
  * @param val  Non-zero termination value returned by smf_run_state.
  */
-void smf_set_terminate(smf_ctx_t *ctx, int32_t val);
+SMF_API void smf_set_terminate(smf_ctx_t *ctx, int32_t val);
 
 /**
  * @brief Runs one iteration of the state machine (including any parent states).
@@ -129,7 +146,7 @@ void smf_set_terminate(smf_ctx_t *ctx, int32_t val);
  * @return A non-zero value should terminate the state machine. This can indicate
  *		   reaching a terminal state or detecting an error.
  */
-int32_t smf_run_state(smf_ctx_t *ctx);
+SMF_API int32_t smf_run_state(smf_ctx_t *ctx);
 
 /**
  * @brief Get the current leaf state.

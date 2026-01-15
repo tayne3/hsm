@@ -7,19 +7,61 @@ set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-include(GNUInstallDirs)
-set(CMAKE_SKIP_BUILD_RPATH OFF)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
-if(APPLE)
-  set(CMAKE_MACOSX_RPATH ON)
-  set(CMAKE_INSTALL_RPATH "@loader_path;@loader_path/${CMAKE_INSTALL_LIBDIR}")
-else()
-  set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/${CMAKE_INSTALL_LIBDIR}")
+# This variable is set by project() in CMake 3.21+
+if(NOT DEFINED PROJECT_IS_TOP_LEVEL)
+  string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}" PROJECT_IS_TOP_LEVEL)
+endif()
+
+if(PROJECT_IS_TOP_LEVEL)
+  option(SMF_BUILD_EXAMPLE "build example program" OFF)
+  option(SMF_BUILD_TEST "build test program" OFF)
+
+  get_property(isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+  if(NOT isMultiConfig
+     AND NOT CMAKE_BUILD_TYPE
+     AND NOT CMAKE_CONFIGURATION_TYPES
+  )
+    message(STATUS "Setting build type to 'Release' as none was specified.")
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+  endif()
+
+  if(NOT DEFINED ENV{CPM_SOURCE_CACHE})
+    set(ENV{CPM_SOURCE_CACHE} ${CMAKE_SOURCE_DIR}/cmake_modules)
+  endif()
+    
+  if(NOT DEFINED CMAKE_C_VISIBILITY_PRESET)
+    set(CMAKE_C_VISIBILITY_PRESET hidden CACHE STRING "Preset for the export of private symbols")
+    set_property(CACHE CMAKE_C_VISIBILITY_PRESET PROPERTY STRINGS hidden default)
+  endif()
+
+  if(NOT DEFINED CMAKE_CXX_VISIBILITY_PRESET)
+    set(CMAKE_CXX_VISIBILITY_PRESET hidden CACHE STRING "Preset for the export of private symbols")
+    set_property(CACHE CMAKE_CXX_VISIBILITY_PRESET PROPERTY STRINGS hidden default)
+  endif()
+
+  if(NOT DEFINED CMAKE_VISIBILITY_INLINES_HIDDEN)
+    set(CMAKE_VISIBILITY_INLINES_HIDDEN ON CACHE BOOL "Whether to add a compile flag to hide symbols of inline functions")
+  endif()
+  
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+  
+  include(GNUInstallDirs)
+  set(CMAKE_SKIP_BUILD_RPATH OFF)
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
+  if(APPLE)
+    set(CMAKE_MACOSX_RPATH ON)
+    set(CMAKE_INSTALL_RPATH "@loader_path;@loader_path/${CMAKE_INSTALL_LIBDIR}")
+  else()
+    set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/${CMAKE_INSTALL_LIBDIR}")
+  endif()
 endif()
 
 add_library(smf_compile_dependency INTERFACE)
@@ -76,71 +118,4 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_L
   target_compile_options(smf_compile_dependency INTERFACE 
 		"$<$<COMPILE_LANGUAGE:CXX>:-Wno-missing-field-initializers>"
 	)
-endif()
-
-if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
-  target_compile_options(smf_compile_dependency INTERFACE 
-		"$<$<COMPILE_LANGUAGE:C>:/GS>"
-	)
-  if(MSVC_VERSION GREATER_EQUAL 1920)
-    target_compile_options(smf_compile_dependency INTERFACE 
-		  "$<$<COMPILE_LANGUAGE:C>:/guard:cf>"
-	  )
-  endif()
-endif()
-if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  target_compile_options(smf_compile_dependency INTERFACE 
-		"$<$<COMPILE_LANGUAGE:CXX>:/GS>"
-	)
-  if(MSVC_VERSION GREATER_EQUAL 1920)
-    target_compile_options(smf_compile_dependency INTERFACE 
-		  "$<$<COMPILE_LANGUAGE:CXX>:/guard:cf>"
-	  )
-  endif()
-endif()
-
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-  check_c_compiler_flag("-fstack-protector-all" C_HAS_STACK_PROTECT_ALL)
-  if(C_HAS_STACK_PROTECT_ALL)
-    target_compile_options(smf_compile_dependency INTERFACE 
-      "$<$<COMPILE_LANGUAGE:C>:-fstack-protector-all>"
-    )
-  else()
-    check_c_compiler_flag("-fstack-protector-strong" C_HAS_STACK_PROTECT_STRONG)
-    if(C_HAS_STACK_PROTECT_STRONG)
-      target_compile_options(smf_compile_dependency INTERFACE 
-      "$<$<COMPILE_LANGUAGE:C>:-fstack-protector-strong>"
-      )
-    else()
-      check_c_compiler_flag("-fstack-protector" C_HAS_STACK_PROTECT)
-      if(C_HAS_STACK_PROTECT)
-        target_compile_options(smf_compile_dependency INTERFACE 
-        "$<$<COMPILE_LANGUAGE:C>:-fstack-protector>"
-        )
-      endif()
-    endif()
-  endif()
-endif()
-
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  check_cxx_compiler_flag("-fstack-protector-all" CXX_HAS_STACK_PROTECT_ALL)
-  if(CXX_HAS_STACK_PROTECT_ALL)
-    target_compile_options(smf_compile_dependency INTERFACE 
-      "$<$<COMPILE_LANGUAGE:CXX>:-fstack-protector-all>"
-    )
-  else()
-    check_cxx_compiler_flag("-fstack-protector-strong" CXX_HAS_STACK_PROTECT_STRONG)
-    if(CXX_HAS_STACK_PROTECT_STRONG)
-      target_compile_options(smf_compile_dependency INTERFACE 
-      "$<$<COMPILE_LANGUAGE:CXX>:-fstack-protector-strong>"
-      )
-    else()
-      check_cxx_compiler_flag("-fstack-protector" CXX_HAS_STACK_PROTECT)
-      if(CXX_HAS_STACK_PROTECT)
-        target_compile_options(smf_compile_dependency INTERFACE 
-        "$<$<COMPILE_LANGUAGE:CXX>:-fstack-protector>"
-        )
-      endif()
-    endif()
-  endif()
 endif()
