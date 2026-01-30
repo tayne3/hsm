@@ -10,14 +10,20 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+set(HSM_LIB_TYPE STATIC)
+if(BUILD_SHARED_LIBS)
+  set(HSM_LIB_TYPE SHARED)
+endif()
+message(STATUS "hsm v${HSM_VERSION} ${HSM_LIB_TYPE} library")
+
 # This variable is set by project() in CMake 3.21+
 if(NOT DEFINED PROJECT_IS_TOP_LEVEL)
   string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}" PROJECT_IS_TOP_LEVEL)
 endif()
 
 if(PROJECT_IS_TOP_LEVEL)
-  option(SMF_BUILD_EXAMPLE "build example program" OFF)
-  option(SMF_BUILD_TEST "build test program" OFF)
+  option(HSM_BUILD_EXAMPLE "build example program" OFF)
+  option(HSM_BUILD_TEST "build test program" OFF)
 
   get_property(isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
   if(NOT isMultiConfig
@@ -64,45 +70,46 @@ if(PROJECT_IS_TOP_LEVEL)
   endif()
 endif()
 
-add_library(smf_compile_dependency INTERFACE)
-target_compile_features(smf_compile_dependency INTERFACE c_std_99)
+add_library(hsm_compile_dependency INTERFACE)
+target_compile_features(hsm_compile_dependency INTERFACE c_std_99)
 if(UNIX)
-  target_link_libraries(smf_compile_dependency INTERFACE pthread)
+  target_link_libraries(hsm_compile_dependency INTERFACE pthread)
 endif()
 
 # set source charset to utf-8 for MSVC
 if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
-  target_compile_options(smf_compile_dependency INTERFACE 
+  target_compile_options(hsm_compile_dependency INTERFACE 
 		"$<$<COMPILE_LANGUAGE:C>:/utf-8>"
 	)
 endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  target_compile_options(smf_compile_dependency INTERFACE 
+  target_compile_options(hsm_compile_dependency INTERFACE 
 		"$<$<COMPILE_LANGUAGE:CXX>:/utf-8>"
+		"$<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>"
 	)
 endif()
 
 # compiler warnings, skipped for MSVC & ClangCL (MSVC frontend)
 if(NOT (CMAKE_C_COMPILER_ID STREQUAL "MSVC" OR ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" AND "${CMAKE_C_COMPILER_FRONTEND_VARIANT}" STREQUAL "MSVC")))
-  target_compile_options(smf_compile_dependency INTERFACE
+  target_compile_options(hsm_compile_dependency INTERFACE
     "$<$<COMPILE_LANGUAGE:C>:-Wall>"
     "$<$<COMPILE_LANGUAGE:C>:-Wextra>"
   )
   check_c_compiler_flag("-Werror=return-type" HAVE_C_WERROR_RETURN_TYPE)
   if(HAVE_C_WERROR_RETURN_TYPE)
-    target_compile_options(smf_compile_dependency INTERFACE
+    target_compile_options(hsm_compile_dependency INTERFACE
       "$<$<COMPILE_LANGUAGE:C>:-Werror=return-type>"
     )
   endif()
 endif()
 if(NOT (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND "${CMAKE_CXX_COMPILER_FRONTEND_VARIANT}" STREQUAL "MSVC")))
-  target_compile_options(smf_compile_dependency INTERFACE
+  target_compile_options(hsm_compile_dependency INTERFACE
     "$<$<COMPILE_LANGUAGE:CXX>:-Wall>"
     "$<$<COMPILE_LANGUAGE:CXX>:-Wextra>"
   )
   check_cxx_compiler_flag("-Werror=return-type" HAVE_CXX_WERROR_RETURN_TYPE)
   if(HAVE_CXX_WERROR_RETURN_TYPE)
-    target_compile_options(smf_compile_dependency INTERFACE
+    target_compile_options(hsm_compile_dependency INTERFACE
       "$<$<COMPILE_LANGUAGE:CXX>:-Werror=return-type>"
     )
   endif()
@@ -110,12 +117,12 @@ endif()
 
 # Handle -Wno-missing-field-initializers for older GCC
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS 6.0)
-  target_compile_options(smf_compile_dependency INTERFACE 
+  target_compile_options(hsm_compile_dependency INTERFACE 
 		"$<$<COMPILE_LANGUAGE:C>:-Wno-missing-field-initializers>"
 	)
 endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6.0)
-  target_compile_options(smf_compile_dependency INTERFACE 
+  target_compile_options(hsm_compile_dependency INTERFACE 
 		"$<$<COMPILE_LANGUAGE:CXX>:-Wno-missing-field-initializers>"
 	)
 endif()

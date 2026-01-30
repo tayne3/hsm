@@ -52,7 +52,7 @@ jobs:
           cmake -S . -B build
           -G "${{ matrix.generator }}"
           -DCMAKE_BUILD_TYPE=Release
-          -DSMF_BUILD_TEST=ON
+          -DHSM_BUILD_TEST=ON
 
       - name: Build
         run: cmake --build build --config Release

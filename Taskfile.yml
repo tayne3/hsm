@@ -35,8 +35,8 @@ tasks:
         cmake .. \
           -DCMAKE_BUILD_TYPE={{.BUILD_TYPE}} \
           {{if .BUILD_SHARED_LIBS}}-DBUILD_SHARED_LIBS={{.BUILD_SHARED_LIBS}}{{end}} \
-          {{if .SMF_BUILD_TEST}}-DSMF_BUILD_TEST={{.SMF_BUILD_TEST}}{{end}} \
-          {{if .SMF_BUILD_EXAMPLE}}-DSMF_BUILD_EXAMPLE={{.SMF_BUILD_EXAMPLE}}{{end}} \
+          {{if .HSM_BUILD_TEST}}-DHSM_BUILD_TEST={{.HSM_BUILD_TEST}}{{end}} \
+          {{if .HSM_BUILD_EXAMPLE}}-DHSM_BUILD_EXAMPLE={{.HSM_BUILD_EXAMPLE}}{{end}} \
           {{if .BUILD_ARGS}}{{.BUILD_ARGS}}{{end}}
 
   build:

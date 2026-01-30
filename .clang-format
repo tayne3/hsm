@@ -92,6 +92,8 @@ BreakBeforeTernaryOperators: false
 
 # 在构造函数初始值列表的逗号前换行
 BreakConstructorInitializersBeforeComma: false
+# 在模板声明之前换行
+BreakTemplateDeclarations: true
 # 每行字符的限制,默认80
 ColumnLimit: 160
 # 注释的正则表达式,用于确定哪些注释被解析为特殊注释命令

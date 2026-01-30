@@ -1,19 +1,24 @@
-add_executable(test_basic test_basic.c)
+set(MAIN_CPP ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
+
+add_library(Catch2 INTERFACE)
+target_include_directories(Catch2 INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_executable(test_basic cases/test_basic.cpp ${MAIN_CPP})
+target_link_libraries(test_basic PRIVATE Catch2 hsm::hsm hsm_compile_dependency)
 add_test(NAME test_basic COMMAND test_basic)
-target_link_libraries(test_basic PRIVATE smf::smf cunit::cunit)
 
-add_executable(test_flat test_flat.c)
-add_test(NAME test_flat COMMAND test_flat)
-target_link_libraries(test_flat PRIVATE smf::smf cunit::cunit)
-
-add_executable(test_5_ancestor test_5_ancestor.c)
-add_test(NAME test_5_ancestor COMMAND test_5_ancestor)
-target_link_libraries(test_5_ancestor PRIVATE smf::smf cunit::cunit)
-
-add_executable(test_hierarchical test_hierarchical.c)
+add_executable(test_hierarchical cases/test_hierarchical.cpp ${MAIN_CPP})
+target_link_libraries(test_hierarchical PRIVATE Catch2 hsm::hsm hsm_compile_dependency)
 add_test(NAME test_hierarchical COMMAND test_hierarchical)
-target_link_libraries(test_hierarchical PRIVATE smf::smf cunit::cunit)
 
-add_executable(test_self_transition test_self_transition.c)
+add_executable(test_ancestor cases/test_ancestor.cpp ${MAIN_CPP})
+target_link_libraries(test_ancestor PRIVATE Catch2 hsm::hsm hsm_compile_dependency)
+add_test(NAME test_ancestor COMMAND test_ancestor)
+
+add_executable(test_self_transition cases/test_self_transition.cpp ${MAIN_CPP})
+target_link_libraries(test_self_transition PRIVATE Catch2 hsm::hsm hsm_compile_dependency)
 add_test(NAME test_self_transition COMMAND test_self_transition)
-target_link_libraries(test_self_transition PRIVATE smf::smf cunit::cunit)
+
+add_executable(test_start_with_transition cases/test_start_with_transition.cpp ${MAIN_CPP})
+target_link_libraries(test_start_with_transition PRIVATE Catch2 hsm::hsm hsm_compile_dependency)
+add_test(NAME test_start_with_transition COMMAND test_start_with_transition)
