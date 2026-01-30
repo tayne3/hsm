@@ -9,7 +9,6 @@
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace hsm {
 
@@ -44,14 +43,13 @@ public:
 	virtual void        on_exit(Machine<Traits> &) {}
 	virtual const char *name() const { return "State"; }
 
-	State<Traits> *parent() const { return parent_; }
-	int            depth() const { return depth_; }
-	StateID        id() const { return id_; }
+	StateID id() const { return id_; }
 
-protected:
-	State<Traits> *parent_ = nullptr;
-	int            depth_  = 0;
-	StateID        id_     = StateID{};
+private:
+	StateID        id_        = StateID{};
+	std::size_t    depth_     = 0;
+	State<Traits> *parent_    = nullptr;
+	State<Traits> *path_next_ = nullptr;
 };
 
 // ============================================================================
@@ -63,18 +61,14 @@ class LambdaState : public State<Traits> {
 	friend class Machine<Traits>;
 
 public:
-	using Context = typename Traits::Context;
-	using Event   = typename Traits::Event;
-	using StateID = typename Traits::StateID;
-
-	using HandleFn = std::function<Result(Machine<Traits> &, const Event &)>;
+	using HandleFn = std::function<Result(Machine<Traits> &, const typename Traits::Event &)>;
 	using EntryFn  = std::function<void(Machine<Traits> &)>;
 	using ExitFn   = std::function<void(Machine<Traits> &)>;
 
 	LambdaState(HandleFn handle, EntryFn entry, ExitFn exit, const char *name)
 		: handle_(std::move(handle)), entry_(std::move(entry)), exit_(std::move(exit)), name_(name ? name : "Lambda") {}
 
-	Result handle(Machine<Traits> &m, const Event &e) override { return handle_ ? handle_(m, e) : Result::Pass; }
+	Result handle(Machine<Traits> &m, const typename Traits::Event &e) override { return handle_ ? handle_(m, e) : Result::Pass; }
 	void   on_entry(Machine<Traits> &m) override {
         if (entry_) { entry_(m); }
 	}
@@ -131,11 +125,28 @@ public:
 	Context       *operator->() { return &ctx_; }
 	const Context *operator->() const { return &ctx_; }
 
-	bool    started() const { return started_; }
-	bool    terminated() const { return terminated_; }
-	StateID current_state_id() const { return active_state_ ? active_state_->id() : StateID{}; }
+	/// @brief Indicates whether the state machine has been started
+	/// @return True if `start()` was called and the machine is not terminated
+	bool started() const { return started_; }
 
-	void start(StateID initial_id, const std::function<void(Scope<Traits> &)> &config, typename LambdaState<Traits>::HandleFn root_handler = nullptr) {
+	/// @brief Indicates whether the machine has been requested to terminate
+	/// @return True if `stop()` was called or termination was triggered internally
+	bool terminated() const { return terminated_; }
+
+	/// @brief Get the identifier of the current active state
+	/// @return The active state's `StateID`, or default-constructed `StateID{}` if none
+	StateID current_state_id() const { return active_state_ ? active_state_->id_ : StateID{}; }
+
+	/// @brief Build the state tree and start the machine at the given initial state
+	/// @tparam F Callable type with signature `void(Scope<Traits>&)`
+	/// @param initial_id Identifier of the initial state to enter
+	/// @param fn Callback to declare states and hierarchy under the root scope
+	/// @param root_handler Optional root event handler for top-level dispatch
+	/// @throws std::logic_error If called while already started and not terminated
+	/// @throws std::invalid_argument If the initial state ID is not found
+	template <class F>
+	void start(StateID initial_id, F &&fn, typename LambdaState<Traits>::HandleFn root_handler = nullptr) {
+		static_assert(std::is_same<void, decltype(fn(std::declval<Scope<Traits> &>()))>::value, "F must be callable as void(Scope<Traits>&)");
 		if (started_ && !terminated_) { throw std::logic_error("Cannot already started"); }
 
 		registry_.clear();
@@ -148,7 +159,7 @@ public:
 
 		root_.handle_ = root_handler ? std::move(root_handler) : nullptr;
 		Scope<Traits> root_scope(this, &root_);
-		config(root_scope);
+		fn(root_scope);
 
 		auto *init = get_state(initial_id);
 		if (!init) throw std::invalid_argument("Initial state ID not found");
@@ -160,8 +171,12 @@ public:
 		process_pending();
 	}
 
+	/// @brief Request termination; subsequent events and transitions are ignored
 	void stop() { terminated_ = true; }
 
+	/// @brief Schedule a transition to the target state (deferred execution)
+	/// @param target_id Identifier of the destination state
+	/// @throws std::runtime_error If called during Exit phase or target not found
 	void transition(StateID target_id) {
 		if (phase_ == Phase::Exit) { throw std::runtime_error("Cannot transition during Exit phase"); }
 		auto *dest = get_state(target_id);
@@ -171,13 +186,16 @@ public:
 		has_pending_   = true;
 	}
 
+	/// @brief Dispatch an event, propagating from the active state up the parent chain
+	/// @param evt Event object; default-constructed indicates an empty event
+	/// @note No-op if not started or already terminated; if a pending transition or termination occurs, propagation stops and pending transitions are processed
 	void handle(const Event &evt = Event{}) {
 		if (!started_ || terminated_) { return; }
 
 		handled_ = false;
 		phase_   = Phase::Run;
 
-		for (auto *s = active_state_; s; s = s->parent()) {
+		for (auto *s = active_state_; s; s = s->parent_) {
 			executing_state_ = s;
 			if (s->handle(*this, evt) == Result::Done) {
 				handled_ = true;
@@ -197,11 +215,11 @@ private:
 	}
 
 	static State<Traits> *lca(State<Traits> *a, State<Traits> *b) {
-		while (a->depth() > b->depth()) { a = a->parent(); }
-		while (b->depth() > a->depth()) { b = b->parent(); }
+		while (a->depth_ > b->depth_) { a = a->parent_; }
+		while (b->depth_ > a->depth_) { b = b->parent_; }
 		while (a != b) {
-			a = a->parent();
-			b = b->parent();
+			a = a->parent_;
+			b = b->parent_;
 		}
 		return a;
 	}
@@ -238,29 +256,32 @@ private:
 		auto *common = lca(source, dest);
 
 		phase_ = Phase::Exit;
-		for (auto *s = source; s != common; s = s->parent()) {
+		for (auto *s = source; s != common; s = s->parent_) {
 			executing_state_ = s;
 			s->on_exit(*this);
 			if (terminated_) {
 				phase_ = Phase::Idle;
 				return;
 			}
-			active_state_ = s->parent();
+			active_state_ = s->parent_;
 		}
 
-		std::vector<State<Traits> *> path;
-		for (auto *s = dest; s != common; s = s->parent()) { path.push_back(s); }
+		if (dest != common) {
+			for (auto *s = dest; s != common; s = s->parent_) { s->parent_->path_next_ = s; }
 
-		phase_ = Phase::Entry;
-		for (auto it = path.rbegin(); it != path.rend(); ++it) {
-			auto *s          = *it;
-			executing_state_ = s;
-			s->on_entry(*this);
-			active_state_ = s;
+			phase_  = Phase::Entry;
+			auto *s = common->path_next_;
+			while (s) {
+				executing_state_ = s;
+				s->on_entry(*this);
+				active_state_ = s;
 
-			if (terminated_ || has_pending_) {
-				phase_ = Phase::Idle;
-				return;
+				if (terminated_ || has_pending_) {
+					phase_ = Phase::Idle;
+					return;
+				}
+				if (s == dest) { break; }
+				s = s->path_next_;
 			}
 		}
 		phase_ = Phase::Idle;
@@ -275,59 +296,50 @@ template <typename Traits>
 class Scope {
 	friend class Machine<Traits>;
 
-	using Context = typename Traits::Context;
-	using Event   = typename Traits::Event;
-	using StateID = typename Traits::StateID;
-
 	// Proxy: The key to "state(...).with(...)" syntax
 	class ScopeProxy {
+		Scope<Traits> sub_scope;
+
 	public:
-		ScopeProxy(Machine<Traits> *m, State<Traits> *s) : machine_(m), target_state_(s) {}
+		ScopeProxy(Machine<Traits> *m, State<Traits> *s) : sub_scope(m, s) {}
 
 		// The method to open a new scope for children
-		void with(const std::function<void(Scope<Traits> &)> &children_config) {
-			Scope<Traits> sub_scope(machine_, target_state_);
-			children_config(sub_scope);
+		template <class F>
+		void with(F &&fn) {
+			static_assert(std::is_same<void, decltype(fn(std::declval<Scope<Traits> &>()))>::value, "F must be callable as void(Scope<Traits>&)");
+			fn(sub_scope);
 		}
-
-	private:
-		Machine<Traits> *machine_;
-		State<Traits>   *target_state_;
 	};
 
 private:
 	Machine<Traits> *machine_;
 	State<Traits>   *parent_;
 
-	Scope(Machine<Traits> *m, State<Traits> *p) : machine_(m), parent_(p) {}
+	Scope(Machine<Traits> *m, State<Traits> *s) : machine_(m), parent_(s) {}
+
+	ScopeProxy register_state(typename Traits::StateID id, State<Traits> *s) {
+		s->parent_ = parent_;
+		s->depth_  = parent_->depth_ + 1;
+		s->id_     = id;
+
+		machine_->registry_.emplace(id, std::unique_ptr<State<Traits>>(s));
+		return ScopeProxy{machine_, s};
+	}
 
 public:
 	// Class-based State
 	template <typename S, typename... Args>
-	ScopeProxy state(StateID id, Args &&...args) {
+	ScopeProxy state(typename Traits::StateID id, Args &&...args) {
 		static_assert(std::is_base_of<State<Traits>, S>::value, "Must derive from State");
-
-		auto s = new S(std::forward<Args>(args)...);
-		machine_->registry_.emplace(id, std::unique_ptr<S>(s));
-
-		s->parent_ = parent_;
-		s->depth_  = parent_->depth_ + 1;
-		s->id_     = id;
-
-		return ScopeProxy{machine_, s};
+		if (machine_->registry_.find(id) != machine_->registry_.end()) { throw std::invalid_argument("Duplicate StateID detected"); }
+		return register_state(id, new S(std::forward<Args>(args)...));
 	}
 
 	// Lambda-based State
-	ScopeProxy state(StateID id, typename LambdaState<Traits>::HandleFn handle = nullptr, typename LambdaState<Traits>::EntryFn entry = nullptr,
-					 typename LambdaState<Traits>::ExitFn exit = nullptr, const char *name = nullptr) {
-		auto s = new LambdaState<Traits>(std::move(handle), std::move(entry), std::move(exit), name);
-		machine_->registry_.emplace(id, std::unique_ptr<LambdaState<Traits>>(s));
-
-		s->parent_ = parent_;
-		s->depth_  = parent_->depth_ + 1;
-		s->id_     = id;
-
-		return ScopeProxy{machine_, s};
+	ScopeProxy state(typename Traits::StateID id, typename LambdaState<Traits>::HandleFn handle = nullptr,
+					 typename LambdaState<Traits>::EntryFn entry = nullptr, typename LambdaState<Traits>::ExitFn exit = nullptr, const char *name = nullptr) {
+		if (machine_->registry_.find(id) != machine_->registry_.end()) { throw std::invalid_argument("Duplicate StateID detected"); }
+		return register_state(id, new LambdaState<Traits>(std::move(handle), std::move(entry), std::move(exit), name));
 	}
 };
 
