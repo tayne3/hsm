@@ -22,3 +22,7 @@ add_test(NAME test_self_transition COMMAND test_self_transition)
 add_executable(test_start_with_transition cases/test_start_with_transition.cpp ${MAIN_CPP})
 target_link_libraries(test_start_with_transition PRIVATE Catch2 hsm::hsm hsm_compile_dependency)
 add_test(NAME test_start_with_transition COMMAND test_start_with_transition)
+
+add_executable(test_matcher cases/test_matcher.cpp ${MAIN_CPP})
+target_link_libraries(test_matcher PRIVATE Catch2 hsm::hsm hsm_compile_dependency)
+add_test(NAME test_matcher COMMAND test_matcher)

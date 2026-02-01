@@ -141,7 +141,7 @@ public:
 	/// @tparam F Callable type with signature `void(Scope<Traits>&)`
 	/// @param initial_id Identifier of the initial state to enter
 	/// @param fn Callback to declare states and hierarchy under the root scope
-	/// @param root_handler Optional root event handler for top-level dispatch
+	/// @param root_handler Optional root event handler for top-level match
 	/// @throws std::logic_error If called while already started and not terminated
 	/// @throws std::invalid_argument If the initial state ID is not found
 	template <class F>
@@ -342,6 +342,61 @@ public:
 		return register_state(id, new LambdaState<Traits>(std::move(handle), std::move(entry), std::move(exit), name));
 	}
 };
+
+// ============================================================================
+// Event Dispatcher Helper
+// ============================================================================
+
+struct DefaultCastPolicy {
+	template <typename Specific, typename Base>
+	static const Specific *apply(const Base &b) {
+		return dynamic_cast<const Specific *>(&b);
+	}
+};
+
+template <typename CastPolicy, typename Traits>
+class Matcher {
+	using MachineType = Machine<Traits>;
+	using Event       = typename Traits::Event;
+
+	MachineType &m_;
+	const Event &e_;
+	Result       result_ = Result::Pass;
+	bool         done_   = false;
+
+public:
+	Matcher(MachineType &m, const Event &e) : m_(m), e_(e) {}
+
+	// Match a specific event type
+	template <typename TargetEvent, typename Handler>
+	Matcher &on(Handler &&h) {
+		if (!done_) {
+			if (const auto *ptr = CastPolicy::template apply<TargetEvent>(e_)) {
+				result_ = h(m_, *ptr);
+				done_   = true;
+			}
+		}
+		return *this;
+	}
+
+	// Fallback handler
+	template <typename Handler>
+	Matcher &otherwise(Handler &&h) {
+		if (!done_) {
+			result_ = h(m_, e_);
+			done_   = true;
+		}
+		return *this;
+	}
+
+	Result result() const { return result_; }
+	operator Result() const { return result_; }
+};
+
+template <typename CastPolicy = DefaultCastPolicy, typename Traits>
+Matcher<CastPolicy, Traits> match(Machine<Traits> &m, const typename Traits::Event &e) {
+	return Matcher<CastPolicy, Traits>(m, e);
+}
 
 }  // namespace hsm
 
