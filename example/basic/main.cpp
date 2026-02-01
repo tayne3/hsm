@@ -1,6 +1,5 @@
 #include <cstdio>
-
-#include "hsm/hsm.hpp"
+#include <hsm/hsm.hpp>
 
 struct AppTraits {
 	enum class StateID { Off, On, Idle, Working };

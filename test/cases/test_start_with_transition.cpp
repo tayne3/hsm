@@ -1,8 +1,7 @@
+#include <catch.hpp>
+#include <hsm/hsm.hpp>
 #include <string>
 #include <vector>
-
-#include "../catch.hpp"
-#include "hsm/hsm.hpp"
 
 namespace {
 

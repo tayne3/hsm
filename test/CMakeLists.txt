@@ -26,3 +26,7 @@ add_test(NAME test_start_with_transition COMMAND test_start_with_transition)
 add_executable(test_matcher cases/test_matcher.cpp ${MAIN_CPP})
 target_link_libraries(test_matcher PRIVATE Catch2 hsm::hsm hsm_compile_dependency)
 add_test(NAME test_matcher COMMAND test_matcher)
+
+add_executable(test_scope_proxy cases/test_scope_proxy.cpp ${MAIN_CPP})
+target_link_libraries(test_scope_proxy PRIVATE Catch2 hsm::hsm hsm_compile_dependency)
+add_test(NAME test_scope_proxy COMMAND test_scope_proxy)

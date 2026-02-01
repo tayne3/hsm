@@ -1,5 +1,5 @@
-#include "../catch.hpp"
-#include "hsm/hsm.hpp"
+#include <catch.hpp>
+#include <hsm/hsm.hpp>
 
 namespace {
 

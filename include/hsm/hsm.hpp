@@ -59,14 +59,15 @@ private:
 template <typename Traits>
 class LambdaState : public State<Traits> {
 	friend class Machine<Traits>;
+	friend class Scope<Traits>;
 
 public:
 	using HandleFn = std::function<Result(Machine<Traits> &, const typename Traits::Event &)>;
 	using EntryFn  = std::function<void(Machine<Traits> &)>;
 	using ExitFn   = std::function<void(Machine<Traits> &)>;
 
-	LambdaState(HandleFn handle, EntryFn entry, ExitFn exit, const char *name)
-		: handle_(std::move(handle)), entry_(std::move(entry)), exit_(std::move(exit)), name_(name ? name : "Lambda") {}
+	LambdaState() = default;
+	LambdaState(const char *name) : name_(name ? name : "Lambda") {}
 
 	Result handle(Machine<Traits> &m, const typename Traits::Event &e) override { return handle_ ? handle_(m, e) : Result::Pass; }
 	void   on_entry(Machine<Traits> &m) override {
@@ -78,10 +79,10 @@ public:
 	const char *name() const override { return name_.c_str(); }
 
 private:
-	HandleFn    handle_;
-	EntryFn     entry_;
-	ExitFn      exit_;
-	std::string name_;
+	HandleFn    handle_ = nullptr;
+	EntryFn     entry_  = nullptr;
+	ExitFn      exit_   = nullptr;
+	std::string name_   = "Lambda";
 };
 
 // ============================================================================
@@ -100,7 +101,7 @@ class Machine {
 
 private:
 	Context                                           ctx_;
-	LambdaState<Traits>                               root_;
+	LambdaState<Traits>                               root_ = {"Root"};
 	std::map<StateID, std::unique_ptr<State<Traits>>> registry_;
 
 	State<Traits> *active_state_    = nullptr;
@@ -115,7 +116,7 @@ private:
 
 public:
 	template <typename... Args>
-	explicit Machine(Args &&...args) : ctx_(std::forward<Args>(args)...), root_(nullptr, nullptr, nullptr, "Root") {}
+	explicit Machine(Args &&...args) : ctx_(std::forward<Args>(args)...) {}
 
 	Machine(const Machine &)            = delete;
 	Machine &operator=(const Machine &) = delete;
@@ -298,16 +299,42 @@ class Scope {
 
 	// Proxy: The key to "state(...).with(...)" syntax
 	class ScopeProxy {
-		Scope<Traits> sub_scope;
+	protected:
+		Scope<Traits> sub_scope_;
 
 	public:
-		ScopeProxy(Machine<Traits> *m, State<Traits> *s) : sub_scope(m, s) {}
+		ScopeProxy(Machine<Traits> *m, State<Traits> *s) : sub_scope_(m, s) {}
 
-		// The method to open a new scope for children
 		template <class F>
 		void with(F &&fn) {
 			static_assert(std::is_same<void, decltype(fn(std::declval<Scope<Traits> &>()))>::value, "F must be callable as void(Scope<Traits>&)");
-			fn(sub_scope);
+			fn(sub_scope_);
+		}
+	};
+
+	// Lambda Proxy
+	class LambdaProxy : public ScopeProxy {
+	protected:
+		LambdaState<Traits> *target_state_;
+
+	public:
+		LambdaProxy(Machine<Traits> *m, LambdaState<Traits> *s) : ScopeProxy(m, s), target_state_(s) {}
+
+		LambdaProxy &handle(typename LambdaState<Traits>::HandleFn fn) {
+			target_state_->handle_ = std::move(fn);
+			return *this;
+		}
+		LambdaProxy &on_entry(typename LambdaState<Traits>::EntryFn fn) {
+			target_state_->entry_ = std::move(fn);
+			return *this;
+		}
+		LambdaProxy &on_exit(typename LambdaState<Traits>::ExitFn fn) {
+			target_state_->exit_ = std::move(fn);
+			return *this;
+		}
+		LambdaProxy &name(const char *name) {
+			if (name) { target_state_->name_ = name; }
+			return *this;
 		}
 	};
 
@@ -317,29 +344,33 @@ private:
 
 	Scope(Machine<Traits> *m, State<Traits> *s) : machine_(m), parent_(s) {}
 
-	ScopeProxy register_state(typename Traits::StateID id, State<Traits> *s) {
+	// Helper to register state pointer
+	void register_ptr(typename Traits::StateID id, State<Traits> *s) {
 		s->parent_ = parent_;
 		s->depth_  = parent_->depth_ + 1;
 		s->id_     = id;
-
 		machine_->registry_.emplace(id, std::unique_ptr<State<Traits>>(s));
-		return ScopeProxy{machine_, s};
 	}
 
 public:
-	// Class-based State
+	// Class-based (Template) -> ScopeProxy
 	template <typename S, typename... Args>
 	ScopeProxy state(typename Traits::StateID id, Args &&...args) {
 		static_assert(std::is_base_of<State<Traits>, S>::value, "Must derive from State");
 		if (machine_->registry_.find(id) != machine_->registry_.end()) { throw std::invalid_argument("Duplicate StateID detected"); }
-		return register_state(id, new S(std::forward<Args>(args)...));
+
+		auto *s = new S(std::forward<Args>(args)...);
+		register_ptr(id, s);
+		return ScopeProxy(machine_, s);
 	}
 
-	// Lambda-based State
-	ScopeProxy state(typename Traits::StateID id, typename LambdaState<Traits>::HandleFn handle = nullptr,
-					 typename LambdaState<Traits>::EntryFn entry = nullptr, typename LambdaState<Traits>::ExitFn exit = nullptr, const char *name = nullptr) {
+	// Lambda-based (No Template) -> LambdaProxy
+	LambdaProxy state(typename Traits::StateID id) {
 		if (machine_->registry_.find(id) != machine_->registry_.end()) { throw std::invalid_argument("Duplicate StateID detected"); }
-		return register_state(id, new LambdaState<Traits>(std::move(handle), std::move(entry), std::move(exit), name));
+
+		auto *s = new LambdaState<Traits>();
+		register_ptr(id, s);
+		return LambdaProxy(machine_, s);
 	}
 };
 
