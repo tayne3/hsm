@@ -5,11 +5,11 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'The tag to create a release for (e.g., v1.0.0)'
+        description: "The tag to create a release for (e.g., v1.0.0)"
         required: true
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   release:
@@ -21,9 +21,56 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Generate release notes
+        run: |
+          cat > release_notes.md << EOF
+          ## 📥 Quick Installation
+
+          \`\`\`bash
+          # Download header
+          curl -o hsm.hpp https://github.com/tayne3/hsm/releases/download/${{ github.event.inputs.tag || github.ref_name }}/hsm.hpp
+          \`\`\`
+
+          ## 📝 Usage
+
+          \`\`\`cpp
+          #include "hsm.hpp"
+          using namespace hsm;
+
+          // Define Events
+          struct Click : Event {};
+
+          // Define State Machine
+          struct SwitchTraits {
+              using StateID = int;
+              using Event   = Event;
+              using Context = void*;
+          };
+
+          // Define States
+          constexpr int OFF = 0;
+          constexpr int ON  = 1;
+
+          int main() {
+              Machine<SwitchTraits> sm;
+              sm.start(OFF, [](auto& s) {
+                  s.state(OFF).handle([](auto& m, const Event& e) {
+                      if (e.is<Click>()) m.transition(ON);
+                  });
+                  s.state(ON).handle([](auto& m, const Event& e) {
+                      if (e.is<Click>()) m.transition(OFF);
+                  });
+              });
+              sm.handle(Click{});
+          }
+          \`\`\`
+          EOF
+
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          body_path: release_notes.md
+          files: include/hsm/hsm.hpp
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
