@@ -11,8 +11,18 @@ HSM 是一个用于 C++11 的轻量级、仅头文件的**分层状态机**库�
 
 ### 项目集成
 
+**CMake**
+
 ```cmake
 target_link_libraries(my_target PRIVATE hsm::hsm)
+```
+
+**单头文件**
+
+将 `hsm.hpp` 下载到你的项目目录：
+
+```bash
+curl -L -o hsm.hpp https://github.com/tayne3/hsm/releases/latest/download/hsm.hpp
 ```
 
 ### 使用示例

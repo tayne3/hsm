@@ -9,10 +9,20 @@
 
 HSM is a lightweight, header-only **Hierarchical State Machine** library for C++11, featuring type-safe events and declarative state definitions.
 
-### Integrate
+### Installation
+
+**CMake**
 
 ```cmake
 target_link_libraries(my_target PRIVATE hsm::hsm)
+```
+
+**Single Header**
+
+Download `hsm.hpp` to your project directory:
+
+```bash
+curl -L -o hsm.hpp https://github.com/tayne3/hsm/releases/latest/download/hsm.hpp
 ```
 
 ### Example
