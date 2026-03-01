@@ -26,12 +26,12 @@
 
 #include <algorithm>
 #include <functional>
-#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace hsm {
 
@@ -123,9 +123,9 @@ class Machine {
 	enum class Phase { Idle, Run, Entry, Exit };
 
 private:
-	Context                                           ctx_;
-	LambdaState<Traits>                               root_ = {"Root"};
-	std::map<StateID, std::unique_ptr<State<Traits>>> registry_;
+	Context                                                         ctx_;
+	LambdaState<Traits>                                             root_ = {"Root"};
+	std::vector<std::pair<StateID, std::unique_ptr<State<Traits>>>> registry_;
 
 	State<Traits> *active_state_    = nullptr;
 	State<Traits> *executing_state_ = nullptr;
@@ -185,6 +185,11 @@ public:
 		Scope<Traits> root_scope(this, &root_);
 		fn(root_scope);
 
+		std::sort(registry_.begin(), registry_.end(),
+				  [](const std::pair<StateID, std::unique_ptr<State<Traits>>> &a, const std::pair<StateID, std::unique_ptr<State<Traits>>> &b) {
+					  return a.first < b.first;
+				  });
+
 		auto *init = get_state(initial_id);
 		if (!init) throw std::invalid_argument("Initial state ID not found");
 
@@ -234,8 +239,11 @@ public:
 
 private:
 	State<Traits> *get_state(StateID id) {
-		auto it = registry_.find(id);
-		return (it == registry_.end()) ? nullptr : it->second.get();
+		auto it = std::lower_bound(registry_.begin(), registry_.end(), id,
+								   [](const std::pair<StateID, std::unique_ptr<State<Traits>>> &pair, const StateID &val) { return pair.first < val; });
+
+		if (it != registry_.end() && it->first == id) { return it->second.get(); }
+		return nullptr;
 	}
 
 	static State<Traits> *lca(State<Traits> *a, State<Traits> *b) {
@@ -367,12 +375,19 @@ private:
 
 	Scope(Machine<Traits> *m, State<Traits> *s) : machine_(m), parent_(s) {}
 
+	bool has_state(typename Traits::StateID id) const {
+		for (const auto &pair : machine_->registry_) {
+			if (pair.first == id) { return true; }
+		}
+		return false;
+	}
+
 	// Helper to register state pointer
 	void register_ptr(typename Traits::StateID id, State<Traits> *s) {
 		s->parent_ = parent_;
 		s->depth_  = parent_->depth_ + 1;
 		s->id_     = id;
-		machine_->registry_.emplace(id, std::unique_ptr<State<Traits>>(s));
+		machine_->registry_.emplace_back(id, std::unique_ptr<State<Traits>>(s));
 	}
 
 public:
@@ -380,7 +395,7 @@ public:
 	template <typename S, typename... Args>
 	ScopeProxy state(typename Traits::StateID id, Args &&...args) {
 		static_assert(std::is_base_of<State<Traits>, S>::value, "Must derive from State");
-		if (machine_->registry_.find(id) != machine_->registry_.end()) { throw std::invalid_argument("Duplicate StateID detected"); }
+		if (has_state(id)) { throw std::invalid_argument("Duplicate StateID detected"); }
 
 		auto *s = new S(std::forward<Args>(args)...);
 		register_ptr(id, s);
@@ -389,7 +404,7 @@ public:
 
 	// Lambda-based (No Template) -> LambdaProxy
 	LambdaProxy state(typename Traits::StateID id) {
-		if (machine_->registry_.find(id) != machine_->registry_.end()) { throw std::invalid_argument("Duplicate StateID detected"); }
+		if (has_state(id)) { throw std::invalid_argument("Duplicate StateID detected"); }
 
 		auto *s = new LambdaState<Traits>();
 		register_ptr(id, s);
