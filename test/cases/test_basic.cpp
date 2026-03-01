@@ -130,6 +130,44 @@ TEST_CASE("Basic State Machine Operations", "[basic]") {
 		CHECK(sm->calls[1] == CallRecord{CallType::Exit, "Idle"});
 		CHECK(sm->calls[2] == CallRecord{CallType::Entry, "Idle"});
 	}
+
+	SECTION("Self transition triggers exit and entry") {
+		// Equivalent to previous test_self_transition.cpp
+		sm->clear();
+		sm.transition(ID_Idle);  // Assuming Idle works similarly to 'NormalState' in the old test
+		sm.dispatch();
+
+		REQUIRE(sm->calls.size() == 3);
+		CHECK(sm->calls[0] == CallRecord{CallType::Run, "Idle"});
+		CHECK(sm->calls[1] == CallRecord{CallType::Exit, "Idle"});
+		CHECK(sm->calls[2] == CallRecord{CallType::Entry, "Idle"});
+	}
+
+	SECTION("Start with transition_to()") {
+		// Replicating basic behavior from test_start_with_transition.cpp
+		TestMachine sm_start;
+		REQUIRE(sm_start.started() == false);
+
+		sm_start.start(ID_Idle, [](TestScope& root) {
+			root.state<IdleState>(ID_Idle);
+			root.state<ActiveState>(ID_Active);
+		});
+
+		REQUIRE(sm_start.current_state_id() == ID_Idle);
+		REQUIRE(sm_start.context().calls.size() == 1);
+		CHECK(sm_start.context().calls[0] == CallRecord{CallType::Entry, "Idle"});
+
+		sm_start->clear();
+
+		sm_start.transition(ID_Active);
+		sm_start.dispatch();
+
+		REQUIRE(sm_start.current_state_id() == ID_Active);
+		REQUIRE(sm_start->calls.size() == 3);
+		CHECK(sm_start->calls[0] == CallRecord{CallType::Run, "Idle"});
+		CHECK(sm_start->calls[1] == CallRecord{CallType::Exit, "Idle"});
+		CHECK(sm_start->calls[2] == CallRecord{CallType::Entry, "Active"});
+	}
 }
 
 TEST_CASE("Exception Handling", "[exception]") {

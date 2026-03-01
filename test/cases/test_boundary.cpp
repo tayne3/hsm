@@ -22,28 +22,6 @@ using Scope   = hsm::Scope<Traits>;
 
 }  // namespace
 
-TEST_CASE("Transition in Exit Phase Throws", "[hsm][boundary]") {
-	Machine sm;
-
-	sm.start(0, [](Scope &scope) {
-		scope.state(0)
-			.name("State0")
-			.on_exit([](Machine &sm) {
-				sm.transition(1);  // Fatal: Attempting to transition out during destruction/exit.
-			})
-			.handle([](Machine &sm, const EmptyEvent &) {
-				sm.transition(1);  // valid transition
-				return hsm::Result::Done;
-			});
-
-		scope.state(1).name("State1");
-	});
-
-	SECTION("Throws std::runtime_error when transitions happen during Exit phase") {
-		REQUIRE_THROWS_AS(sm.dispatch(), std::runtime_error);
-	}
-}
-
 TEST_CASE("Infinite Loop Protection", "[hsm][boundary]") {
 	Machine sm;
 

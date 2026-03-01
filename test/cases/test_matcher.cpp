@@ -154,3 +154,214 @@ TEST_CASE("Event Matcher Helper - Custom Policy", "[hsm][match]") {
 		REQUIRE(machine.context().log == "Keyboard;");
 	}
 }
+
+// ============================================================================
+// FastCastPolicy (typeid strict match)
+// ============================================================================
+
+namespace {
+
+enum class FastStateID { ROOT, S1, S2 };
+
+struct FastEvent {
+	virtual ~FastEvent() = default;
+};
+
+struct FastEventA : FastEvent {};
+struct FastEventB : FastEvent {};
+
+struct FastTraits {
+	using StateID = FastStateID;
+	using Event   = FastEvent;
+	struct Context {
+		int a_count = 0;
+		int b_count = 0;
+	};
+};
+
+}  // namespace
+
+TEST_CASE("FastCastPolicy dispatching (typeid strict match)", "[match][fast_policy]") {
+	hsm::Machine<FastTraits> sm;
+
+	sm.start(FastStateID::S1, [](hsm::Scope<FastTraits> &s) {
+		s.state(FastStateID::S1).handle([](hsm::Machine<FastTraits> &sm, const FastEvent &ev) {
+			return hsm::match<hsm::FastCastPolicy>(sm, ev)
+				.on<FastEventA>([](hsm::Machine<FastTraits> &sm, const FastEventA &) {
+					sm.context().a_count++;
+					sm.transition(FastStateID::S2);
+					return hsm::Result::Done;
+				})
+				.otherwise([](hsm::Machine<FastTraits> &, const FastEvent &) { return hsm::Result::Pass; });
+		});
+
+		s.state(FastStateID::S2).handle([](hsm::Machine<FastTraits> &sm, const FastEvent &ev) {
+			return hsm::match<hsm::FastCastPolicy>(sm, ev)
+				.on<FastEventB>([](hsm::Machine<FastTraits> &sm, const FastEventB &) {
+					sm.context().b_count++;
+					sm.transition(FastStateID::S1);
+					return hsm::Result::Done;
+				})
+				.otherwise([](hsm::Machine<FastTraits> &, const FastEvent &) { return hsm::Result::Pass; });
+		});
+	});
+
+	REQUIRE(sm.current_state_id() == FastStateID::S1);
+	REQUIRE(sm.context().a_count == 0);
+	REQUIRE(sm.context().b_count == 0);
+
+	sm.dispatch(FastEventA{});
+	REQUIRE(sm.current_state_id() == FastStateID::S2);
+	REQUIRE(sm.context().a_count == 1);
+	REQUIRE(sm.context().b_count == 0);
+
+	sm.dispatch(FastEventB{});
+	REQUIRE(sm.current_state_id() == FastStateID::S1);
+	REQUIRE(sm.context().a_count == 1);
+	REQUIRE(sm.context().b_count == 1);
+}
+
+// ============================================================================
+// DynamicCastPolicy (polymorphic match)
+// ============================================================================
+
+namespace {
+
+enum class DynStateID { ROOT, S1, S2 };
+
+struct DynEvent {
+	virtual ~DynEvent() = default;
+};
+
+struct DynGroupEvent : DynEvent {};
+
+struct DynEventA : DynGroupEvent {};
+struct DynEventB : DynGroupEvent {};
+struct DynEventC : DynEvent {};
+
+struct DynTraits {
+	using StateID = DynStateID;
+	using Event   = DynEvent;
+	struct Context {
+		int group_count = 0;
+		int c_count     = 0;
+	};
+};
+
+}  // namespace
+
+TEST_CASE("DynamicCastPolicy dispatching (polymorphic match)", "[match][dynamic_policy]") {
+	hsm::Machine<DynTraits> sm;
+
+	sm.start(DynStateID::S1, [](hsm::Scope<DynTraits> &s) {
+		s.state(DynStateID::S1).handle([](hsm::Machine<DynTraits> &sm, const DynEvent &ev) {
+			return hsm::match<hsm::DynamicCastPolicy>(sm, ev)
+				// Match ANY event derived from GroupEvent
+				.on<DynGroupEvent>([](hsm::Machine<DynTraits> &sm, const DynGroupEvent &) {
+					sm.context().group_count++;
+					return hsm::Result::Done;
+				})
+				// Match specific EventC
+				.on<DynEventC>([](hsm::Machine<DynTraits> &sm, const DynEventC &) {
+					sm.context().c_count++;
+					return hsm::Result::Done;
+				})
+				.otherwise([](hsm::Machine<DynTraits> &, const DynEvent &) { return hsm::Result::Pass; });
+		});
+	});
+
+	REQUIRE(sm.current_state_id() == DynStateID::S1);
+	REQUIRE(sm.context().group_count == 0);
+	REQUIRE(sm.context().c_count == 0);
+
+	// EventA derives from GroupEvent -> should map to GroupEvent
+	sm.dispatch(DynEventA{});
+	REQUIRE(sm.context().group_count == 1);
+	REQUIRE(sm.context().c_count == 0);
+
+	// EventB derives from GroupEvent -> should map to GroupEvent
+	sm.dispatch(DynEventB{});
+	REQUIRE(sm.context().group_count == 2);
+	REQUIRE(sm.context().c_count == 0);
+
+	// EventC is standalone -> should map to EventC
+	sm.dispatch(DynEventC{});
+	REQUIRE(sm.context().group_count == 2);
+	REQUIRE(sm.context().c_count == 1);
+}
+
+// ============================================================================
+// TagCastPolicy (static tag match)
+// ============================================================================
+
+namespace {
+
+enum class TagStateID { ROOT, S1, S2 };
+enum class TagEventID { A, B };
+
+struct TagEvent {
+	const TagEventID id;
+	TagEvent(TagEventID id) : id(id) {}
+	virtual ~TagEvent() = default;
+};
+
+struct TagEventExtA : TagEvent {
+	static constexpr TagEventID ID = TagEventID::A;
+	TagEventExtA() : TagEvent(ID) {}
+};
+
+struct TagEventExtB : TagEvent {
+	static constexpr TagEventID ID = TagEventID::B;
+	TagEventExtB() : TagEvent(ID) {}
+};
+
+struct TagTraits {
+	using StateID = TagStateID;
+	using Event   = TagEvent;
+	struct Context {
+		int a_count = 0;
+		int b_count = 0;
+	};
+};
+
+}  // namespace
+
+TEST_CASE("TagCastPolicy dispatching", "[match][tag_policy]") {
+	hsm::Machine<TagTraits> sm;
+
+	sm.start(TagStateID::S1, [](hsm::Scope<TagTraits> &s) {
+		s.state(TagStateID::S1).handle([](hsm::Machine<TagTraits> &sm, const TagEvent &ev) {
+			return hsm::match<hsm::TagCastPolicy>(sm, ev)
+				.on<TagEventExtA>([](hsm::Machine<TagTraits> &sm, const TagEventExtA &) {
+					sm.context().a_count++;
+					sm.transition(TagStateID::S2);
+					return hsm::Result::Done;
+				})
+				.otherwise([](hsm::Machine<TagTraits> &, const TagEvent &) { return hsm::Result::Pass; });
+		});
+
+		s.state(TagStateID::S2).handle([](hsm::Machine<TagTraits> &sm, const TagEvent &ev) {
+			return hsm::match<hsm::TagCastPolicy>(sm, ev)
+				.on<TagEventExtB>([](hsm::Machine<TagTraits> &sm, const TagEventExtB &) {
+					sm.context().b_count++;
+					sm.transition(TagStateID::S1);
+					return hsm::Result::Done;
+				})
+				.otherwise([](hsm::Machine<TagTraits> &, const TagEvent &) { return hsm::Result::Pass; });
+		});
+	});
+
+	REQUIRE(sm.current_state_id() == TagStateID::S1);
+	REQUIRE(sm.context().a_count == 0);
+	REQUIRE(sm.context().b_count == 0);
+
+	sm.dispatch(TagEventExtA{});
+	REQUIRE(sm.current_state_id() == TagStateID::S2);
+	REQUIRE(sm.context().a_count == 1);
+	REQUIRE(sm.context().b_count == 0);
+
+	sm.dispatch(TagEventExtB{});
+	REQUIRE(sm.current_state_id() == TagStateID::S1);
+	REQUIRE(sm.context().a_count == 1);
+	REQUIRE(sm.context().b_count == 1);
+}
