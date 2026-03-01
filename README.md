@@ -29,7 +29,7 @@ curl -L -o hsm.hpp https://github.com/tayne3/hsm/releases/latest/download/hsm.hp
 
 ```cpp
 #include <cstdio>
-#include <hsm/hsm.hpp>
+#include "hsm/hsm.hpp"
 
 // 1. Define Events
 struct Event {
@@ -39,15 +39,15 @@ struct Click : Event {};
 struct Reset : Event {};
 
 // 2. Define State Machine Traits
-struct SwitchTraits {
+struct Traits {
 	using StateID = int;
 	using Event   = Event;
-	using Context = void*;
+	struct Context {};
 };
 
-using Machine = hsm::Machine<SwitchTraits>;
-using State   = hsm::State<SwitchTraits>;
-using Scope   = hsm::Scope<SwitchTraits>;
+using Machine = hsm::Machine<Traits>;
+using State   = hsm::State<Traits>;
+using Scope   = hsm::Scope<Traits>;
 
 // 3. Define States
 constexpr int OFF = 0;
@@ -84,9 +84,9 @@ int main() {
 
 	// 4. Run
 	printf("Dispatching Click...\n");
-	sm.handle(Click{});  // OFF -> ON
+	sm.dispatch(Click{});  // OFF -> ON
 
 	printf("Dispatching Click...\n");
-	sm.handle(Click{});  // ON -> OFF
+	sm.dispatch(Click{});  // ON -> OFF
 }
 ```
