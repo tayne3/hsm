@@ -213,7 +213,7 @@ public:
 	/// @brief Dispatch an event, propagating from the active state up the parent chain
 	/// @param evt Event object; default-constructed indicates an empty event
 	/// @note No-op if not started or already terminated; if a pending transition or termination occurs, propagation stops and pending transitions are processed
-	void handle(const Event &evt = Event{}) {
+	void dispatch(const Event &evt = Event{}) {
 		if (!started_ || terminated_) { return; }
 
 		handled_ = false;
@@ -410,23 +410,20 @@ struct DefaultCastPolicy {
 
 template <typename CastPolicy, typename Traits>
 class Matcher {
-	using MachineType = Machine<Traits>;
-	using Event       = typename Traits::Event;
-
-	MachineType &m_;
-	const Event &e_;
-	Result       result_ = Result::Pass;
-	bool         done_   = false;
+	Machine<Traits>              &sm_;
+	const typename Traits::Event &ev_;
+	Result                        result_ = Result::Pass;
+	bool                          done_   = false;
 
 public:
-	Matcher(MachineType &m, const Event &e) : m_(m), e_(e) {}
+	Matcher(Machine<Traits> &m, const typename Traits::Event &e) : sm_(m), ev_(e) {}
 
 	// Match a specific event type
 	template <typename TargetEvent, typename Handler>
 	Matcher &on(Handler &&h) {
 		if (!done_) {
-			if (const auto *ptr = CastPolicy::template apply<TargetEvent>(e_)) {
-				result_ = h(m_, *ptr);
+			if (const auto *ptr = CastPolicy::template apply<TargetEvent>(ev_)) {
+				result_ = h(sm_, *ptr);
 				done_   = true;
 			}
 		}
@@ -437,13 +434,14 @@ public:
 	template <typename Handler>
 	Matcher &otherwise(Handler &&h) {
 		if (!done_) {
-			result_ = h(m_, e_);
+			result_ = h(sm_, ev_);
 			done_   = true;
 		}
 		return *this;
 	}
 
 	Result result() const { return result_; }
+
 	operator Result() const { return result_; }
 };
 
