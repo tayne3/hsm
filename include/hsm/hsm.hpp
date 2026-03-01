@@ -30,6 +30,7 @@
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -416,10 +417,18 @@ public:
 // Event Dispatcher Helper
 // ============================================================================
 
-struct DefaultCastPolicy {
+struct DynamicCastPolicy {
 	template <typename Specific, typename Base>
 	static const Specific *apply(const Base &b) {
 		return dynamic_cast<const Specific *>(&b);
+	}
+};
+
+struct FastCastPolicy {
+	template <typename Specific, typename Base>
+	static const Specific *apply(const Base &b) {
+		if (typeid(b) == typeid(Specific)) { return static_cast<const Specific *>(&b); }
+		return nullptr;
 	}
 };
 
@@ -460,7 +469,7 @@ public:
 	operator Result() const { return result_; }
 };
 
-template <typename CastPolicy = DefaultCastPolicy, typename Traits>
+template <typename CastPolicy = FastCastPolicy, typename Traits>
 Matcher<CastPolicy, Traits> match(Machine<Traits> &m, const typename Traits::Event &e) {
 	return Matcher<CastPolicy, Traits>(m, e);
 }
