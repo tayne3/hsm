@@ -21,29 +21,30 @@ struct Traits {
 	};
 };
 
-using Machine = hsm::Machine<Traits>;  // Defaults to FastCastPolicy
+using Machine = hsm::Machine<Traits>;
+using Scope   = hsm::Scope<Traits>;
 
 }  // namespace
 
 TEST_CASE("FastCastPolicy dispatching (typeid strict match)", "[fast_policy]") {
 	Machine sm;
 
-	sm.start(StateID::S1, [](hsm::Scope<Traits>& s) {
-		s.state(StateID::S1).handle([](Machine& m, const Event& ev) {
-			return hsm::match<hsm::FastCastPolicy>(m, ev)
-				.on<EventA>([](Machine& m, const EventA&) {
-					m.context().a_count++;
-					m.transition(StateID::S2);
+	sm.start(StateID::S1, [](Scope& s) {
+		s.state(StateID::S1).handle([](Machine& sm, const Event& ev) {
+			return hsm::match<hsm::FastCastPolicy>(sm, ev)
+				.on<EventA>([](Machine& sm, const EventA&) {
+					sm.context().a_count++;
+					sm.transition(StateID::S2);
 					return hsm::Result::Done;
 				})
 				.otherwise([](Machine&, const Event&) { return hsm::Result::Pass; });
 		});
 
-		s.state(StateID::S2).handle([](Machine& m, const Event& ev) {
-			return hsm::match<hsm::FastCastPolicy>(m, ev)
-				.on<EventB>([](Machine& m, const EventB&) {
-					m.context().b_count++;
-					m.transition(StateID::S1);
+		s.state(StateID::S2).handle([](Machine& sm, const Event& ev) {
+			return hsm::match<hsm::FastCastPolicy>(sm, ev)
+				.on<EventB>([](Machine& sm, const EventB&) {
+					sm.context().b_count++;
+					sm.transition(StateID::S1);
 					return hsm::Result::Done;
 				})
 				.otherwise([](Machine&, const Event&) { return hsm::Result::Pass; });

@@ -57,10 +57,10 @@ TEST_CASE("Scope Proxy Dual-Track API", "[scope]") {
 		// config: Root(Lambda) -> Child(Lambda)
 		// Verify fluent API order independence
 		sm.start(ID_Root, [](Scope& root) {
-			root.state(ID_Root).name("RootLambda").on_entry([](Machine& m) { m.context().push_back("Root_Entry"); }).with([](Scope& s) {
+			root.state(ID_Root).name("RootLambda").on_entry([](Machine& sm) { sm.context().push_back("Root_Entry"); }).with([](Scope& s) {
 				s.state(ID_Child)
 					// Calling name() last shouldn't break anything
-					.on_entry([](Machine& m) { m.context().push_back("Child_Entry"); })
+					.on_entry([](Machine& sm) { sm.context().push_back("Child_Entry"); })
 					.name("ChildLambda");
 			});
 		});
@@ -83,9 +83,9 @@ TEST_CASE("Scope Proxy Dual-Track API", "[scope]") {
 			root.state<ClassState>(ID_Root, "Root").with([](Scope& s) {
 				s.state(ID_Child)
 					.name("ChildLambda")
-					.on_entry([](Machine& m) { m.context().push_back("Child_Entry"); })
-					.handle([](Machine& m, const Event&) {
-						m.transition(ID_GrandChild);
+					.on_entry([](Machine& sm) { sm.context().push_back("Child_Entry"); })
+					.handle([](Machine& sm, const Event&) {
+						sm.transition(ID_GrandChild);
 						return hsm::Result::Done;
 					})
 					.with([](Scope& s) { s.state<ClassState>(ID_GrandChild, "GrandChild"); });

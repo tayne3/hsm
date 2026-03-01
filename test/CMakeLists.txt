@@ -46,3 +46,11 @@ add_test(NAME test_dynamic_policy COMMAND test_dynamic_policy)
 add_executable(test_tag_policy cases/test_tag_policy.cpp)
 target_link_libraries(test_tag_policy PRIVATE test_main)
 add_test(NAME test_tag_policy COMMAND test_tag_policy)
+
+add_executable(test_reentrancy cases/test_reentrancy.cpp)
+target_link_libraries(test_reentrancy PRIVATE test_main)
+add_test(NAME test_reentrancy COMMAND test_reentrancy)
+
+add_executable(test_boundary cases/test_boundary.cpp)
+target_link_libraries(test_boundary PRIVATE test_main)
+add_test(NAME test_boundary COMMAND test_boundary)

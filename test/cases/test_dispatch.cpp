@@ -44,20 +44,20 @@ struct UnknownEvent : public Event {
 };
 
 struct State0 : public State {
-	hsm::Result handle(Machine &m, const Event &e) override {
-		switch (e.id) {
+	hsm::Result handle(Machine &sm, const Event &ev) override {
+		switch (ev.id) {
 			case EventId::CLICK: {
-				const auto &click = static_cast<const ClickEvent &>(e);
-				m.context().log += "Click(" + std::to_string(click.x) + "," + std::to_string(click.y) + ");";
+				const auto &click = static_cast<const ClickEvent &>(ev);
+				sm.context().log += "Click(" + std::to_string(click.x) + "," + std::to_string(click.y) + ");";
 				return hsm::Result::Done;
 			}
 			case EventId::KEY: {
-				const auto &key = static_cast<const KeyEvent &>(e);
-				m.context().log += "Key(" + std::to_string(key.key_code) + ");";
+				const auto &key = static_cast<const KeyEvent &>(ev);
+				sm.context().log += "Key(" + std::to_string(key.key_code) + ");";
 				return hsm::Result::Done;
 			}
 			default: {
-				m.context().log += "Unhandled;";
+				sm.context().log += "Unhandled;";
 				return hsm::Result::Pass;
 			}
 		}
@@ -71,20 +71,20 @@ TEST_CASE("Event Dispatching", "[hsm][dispatch]") {
 	machine.start(0, [](Scope &scope) { scope.state<State0>(0); });
 
 	SECTION("Match ClickEvent") {
-		ClickEvent e(10, 20);
-		machine.dispatch(e);
+		ClickEvent ev(10, 20);
+		machine.dispatch(ev);
 		REQUIRE(machine.context().log == "Click(10,20);");
 	}
 
 	SECTION("Match KeyEvent") {
-		KeyEvent e(65);
-		machine.dispatch(e);
+		KeyEvent ev(65);
+		machine.dispatch(ev);
 		REQUIRE(machine.context().log == "Key(65);");
 	}
 
 	SECTION("Match Unhandled Event") {
-		UnknownEvent e;
-		machine.dispatch(e);
+		UnknownEvent ev;
+		machine.dispatch(ev);
 		REQUIRE(machine.context().log == "Unhandled;");
 	}
 }

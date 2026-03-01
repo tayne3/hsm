@@ -34,19 +34,19 @@ struct DispatchTraits {
 };
 
 struct DispatchState : public hsm::State<DispatchTraits> {
-	hsm::Result handle(hsm::Machine<DispatchTraits> &m, const Event &e) override {
+	hsm::Result handle(hsm::Machine<DispatchTraits> &sm, const Event &ev) override {
 		// Use the new match helper with default policy
-		return hsm::match(m, e)
-			.on<ClickEvent>([](hsm::Machine<DispatchTraits> &m, const ClickEvent &click) {
-				m.context().log += "Click(" + std::to_string(click.x) + "," + std::to_string(click.y) + ");";
+		return hsm::match(sm, ev)
+			.on<ClickEvent>([](hsm::Machine<DispatchTraits> &sm, const ClickEvent &click) {
+				sm.context().log += "Click(" + std::to_string(click.x) + "," + std::to_string(click.y) + ");";
 				return hsm::Result::Done;
 			})
-			.on<KeyEvent>([](hsm::Machine<DispatchTraits> &m, const KeyEvent &key) {
-				m.context().log += "Key(" + std::to_string(key.key_code) + ");";
+			.on<KeyEvent>([](hsm::Machine<DispatchTraits> &sm, const KeyEvent &key) {
+				sm.context().log += "Key(" + std::to_string(key.key_code) + ");";
 				return hsm::Result::Done;
 			})
-			.otherwise([](hsm::Machine<DispatchTraits> &m, const Event &) {
-				m.context().log += "Unhandled;";
+			.otherwise([](hsm::Machine<DispatchTraits> &sm, const Event &) {
+				sm.context().log += "Unhandled;";
 				return hsm::Result::Pass;
 			});
 	}
@@ -60,20 +60,20 @@ TEST_CASE("Event Matcher Helper - Default Policy", "[hsm][match]") {
 	machine.start(0, [](hsm::Scope<DispatchTraits> &scope) { scope.state<DispatchState>(0); });
 
 	SECTION("Match ClickEvent") {
-		ClickEvent e(10, 20);
-		machine.dispatch(e);
+		ClickEvent ev(10, 20);
+		machine.dispatch(ev);
 		REQUIRE(machine.context().log == "Click(10,20);");
 	}
 
 	SECTION("Match KeyEvent") {
-		KeyEvent e(65);
-		machine.dispatch(e);
+		KeyEvent ev(65);
+		machine.dispatch(ev);
 		REQUIRE(machine.context().log == "Key(65);");
 	}
 
 	SECTION("Match Unhandled Event") {
-		UnknownEvent e;
-		machine.dispatch(e);
+		UnknownEvent ev;
+		machine.dispatch(ev);
 		REQUIRE(machine.context().log == "Unhandled;");
 	}
 }
@@ -121,15 +121,15 @@ struct CustomTraits {
 };
 
 struct CustomState : hsm::State<CustomTraits> {
-	hsm::Result handle(hsm::Machine<CustomTraits> &m, const Event &e) override {
+	hsm::Result handle(hsm::Machine<CustomTraits> &sm, const Event &ev) override {
 		// Use custom policy!
-		return hsm::match<StaticTypePolicy>(m, e)
-			.on<MouseEvent>([](hsm::Machine<CustomTraits> &m, const MouseEvent &) {
-				m.context().log += "Mouse;";
+		return hsm::match<StaticTypePolicy>(sm, ev)
+			.on<MouseEvent>([](hsm::Machine<CustomTraits> &sm, const MouseEvent &) {
+				sm.context().log += "Mouse;";
 				return hsm::Result::Done;
 			})
-			.on<KeyboardEvent>([](hsm::Machine<CustomTraits> &m, const KeyboardEvent &) {
-				m.context().log += "Keyboard;";
+			.on<KeyboardEvent>([](hsm::Machine<CustomTraits> &sm, const KeyboardEvent &) {
+				sm.context().log += "Keyboard;";
 				return hsm::Result::Done;
 			});
 	}
@@ -143,14 +143,14 @@ TEST_CASE("Event Matcher Helper - Custom Policy", "[hsm][match]") {
 	machine.start(0, [](hsm::Scope<CustomTraits> &scope) { scope.state<CustomState>(0); });
 
 	SECTION("Match MouseEvent via Custom Policy") {
-		MouseEvent e;
-		machine.dispatch(e);
+		MouseEvent ev;
+		machine.dispatch(ev);
 		REQUIRE(machine.context().log == "Mouse;");
 	}
 
 	SECTION("Match KeyboardEvent via Custom Policy") {
-		KeyboardEvent e;
-		machine.dispatch(e);
+		KeyboardEvent ev;
+		machine.dispatch(ev);
 		REQUIRE(machine.context().log == "Keyboard;");
 	}
 }

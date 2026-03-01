@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <functional>
 #include <memory>
+#include <queue>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -93,12 +94,12 @@ public:
 	LambdaState() = default;
 	LambdaState(const char *name) : name_(name ? name : "Lambda") {}
 
-	Result handle(Machine<Traits> &m, const typename Traits::Event &e) override { return handle_ ? handle_(m, e) : Result::Pass; }
-	void   on_entry(Machine<Traits> &m) override {
-        if (entry_) { entry_(m); }
+	Result handle(Machine<Traits> &sm, const typename Traits::Event &ev) override { return handle_ ? handle_(sm, ev) : Result::Pass; }
+	void   on_entry(Machine<Traits> &sm) override {
+        if (entry_) { entry_(sm); }
 	}
-	void on_exit(Machine<Traits> &m) override {
-		if (exit_) { exit_(m); }
+	void on_exit(Machine<Traits> &sm) override {
+		if (exit_) { exit_(sm); }
 	}
 	const char *name() const override { return name_.c_str(); }
 
@@ -132,11 +133,27 @@ private:
 	State<Traits> *executing_state_ = nullptr;
 	State<Traits> *pending_state_   = nullptr;
 
-	Phase phase_       = Phase::Idle;
-	bool  has_pending_ = false;
-	bool  started_     = false;
-	bool  terminated_  = false;
-	bool  handled_     = false;
+	Phase phase_ = Phase::Idle;
+
+	struct EventWrapperBase {
+		virtual ~EventWrapperBase()      = default;
+		virtual const Event &get() const = 0;
+	};
+
+	template <typename T>
+	struct EventWrapper : EventWrapperBase {
+		T payload;
+		EventWrapper(const T &t) : payload(t) {}
+		const Event &get() const override { return payload; }
+	};
+
+	std::queue<std::unique_ptr<EventWrapperBase>> event_queue_;
+
+	bool has_pending_    = false;
+	bool is_started_     = false;
+	bool is_terminated_  = false;
+	bool is_handled_     = false;
+	bool is_dispatching_ = false;
 
 public:
 	template <typename... Args>
@@ -152,11 +169,11 @@ public:
 
 	/// @brief Indicates whether the state machine has been started
 	/// @return True if `start()` was called and the machine is not terminated
-	bool started() const { return started_; }
+	bool started() const { return is_started_; }
 
 	/// @brief Indicates whether the machine has been requested to terminate
 	/// @return True if `stop()` was called or termination was triggered internally
-	bool terminated() const { return terminated_; }
+	bool terminated() const { return is_terminated_; }
 
 	/// @brief Get the identifier of the current active state
 	/// @return The active state's `StateID`, or default-constructed `StateID{}` if none
@@ -172,11 +189,11 @@ public:
 	template <class F>
 	void start(StateID initial_id, F &&fn, typename LambdaState<Traits>::HandleFn root_handler = nullptr) {
 		static_assert(std::is_same<void, decltype(fn(std::declval<Scope<Traits> &>()))>::value, "F must be callable as void(Scope<Traits>&)");
-		if (started_ && !terminated_) { throw std::logic_error("Cannot already started"); }
+		if (is_started_ && !is_terminated_) { throw std::logic_error("Cannot already started"); }
 
 		registry_.clear();
-		started_       = false;
-		terminated_    = false;
+		is_started_    = false;
+		is_terminated_ = false;
 		has_pending_   = false;
 		phase_         = Phase::Idle;
 		active_state_  = nullptr;
@@ -194,7 +211,7 @@ public:
 		auto *init = get_state(initial_id);
 		if (!init) throw std::invalid_argument("Initial state ID not found");
 
-		started_      = true;
+		is_started_   = true;
 		active_state_ = &root_;
 
 		do_transition(init);
@@ -202,7 +219,7 @@ public:
 	}
 
 	/// @brief Request termination; subsequent events and transitions are ignored
-	void stop() { terminated_ = true; }
+	void stop() { is_terminated_ = true; }
 
 	/// @brief Schedule a transition to the target state (deferred execution)
 	/// @param target_id Identifier of the destination state
@@ -219,24 +236,59 @@ public:
 	/// @brief Dispatch an event, propagating from the active state up the parent chain
 	/// @param evt Event object; default-constructed indicates an empty event
 	/// @note No-op if not started or already terminated; if a pending transition or termination occurs, propagation stops and pending transitions are processed
-	void dispatch(const Event &evt = Event{}) {
-		if (!started_ || terminated_) { return; }
+	template <typename E>
+	void dispatch(const E &evt) {
+		if (!is_started_ || is_terminated_) { return; }
 
-		handled_ = false;
-		phase_   = Phase::Run;
+		if (is_dispatching_) {
+			event_queue_.push(std::unique_ptr<EventWrapperBase>(new EventWrapper<E>(evt)));
+			return;
+		}
+
+		is_dispatching_ = true;
+		is_handled_     = false;
+		phase_          = Phase::Run;
 
 		for (auto *s = active_state_; s; s = s->parent_) {
 			executing_state_ = s;
 			if (s->handle(*this, evt) == Result::Done) {
-				handled_ = true;
+				is_handled_ = true;
 				break;
 			}
-			if (has_pending_ || terminated_) { break; }
+			if (has_pending_ || is_terminated_) { break; }
 		}
 
 		phase_ = Phase::Idle;
 		process_pending();
+
+		while (!event_queue_.empty() && !is_terminated_) {
+			auto wrapper = std::move(event_queue_.front());
+			event_queue_.pop();
+
+			is_handled_ = false;
+			phase_      = Phase::Run;
+
+			for (auto *s = active_state_; s; s = s->parent_) {
+				executing_state_ = s;
+				if (s->handle(*this, wrapper->get()) == Result::Done) {
+					is_handled_ = true;
+					break;
+				}
+				if (has_pending_ || is_terminated_) { break; }
+			}
+
+			phase_ = Phase::Idle;
+			process_pending();
+		}
+
+		is_dispatching_ = false;
 	}
+
+	/// @brief Dispatch with brace-initialization fallback
+	void dispatch(const Event &evt) { dispatch<Event>(evt); }
+
+	/// @brief Dispatch an empty default event
+	void dispatch() { dispatch<Event>(Event{}); }
 
 private:
 	State<Traits> *get_state(StateID id) {
@@ -261,7 +313,7 @@ private:
 		static constexpr int MAX_TRANSITIONS = 100;
 
 		int count = 0;
-		while (has_pending_ && !terminated_) {
+		while (has_pending_ && !is_terminated_) {
 			if (++count > MAX_TRANSITIONS) {
 				stop();
 				throw std::runtime_error("Infinite transition loop detected");
@@ -280,7 +332,7 @@ private:
 		if (source == dest) {
 			executing_state_ = source;
 			source->on_exit(*this);
-			if (terminated_) { return; }
+			if (is_terminated_) { return; }
 			executing_state_ = dest;
 			dest->on_entry(*this);
 			return;
@@ -292,7 +344,7 @@ private:
 		for (auto *s = source; s != common; s = s->parent_) {
 			executing_state_ = s;
 			s->on_exit(*this);
-			if (terminated_) {
+			if (is_terminated_) {
 				phase_ = Phase::Idle;
 				return;
 			}
@@ -309,7 +361,7 @@ private:
 				s->on_entry(*this);
 				active_state_ = s;
 
-				if (terminated_ || has_pending_) {
+				if (is_terminated_ || has_pending_) {
 					phase_ = Phase::Idle;
 					return;
 				}
@@ -335,7 +387,7 @@ class Scope {
 		Scope<Traits> sub_scope_;
 
 	public:
-		ScopeProxy(Machine<Traits> *m, State<Traits> *s) : sub_scope_(m, s) {}
+		ScopeProxy(Machine<Traits> *sm, State<Traits> *s) : sub_scope_(sm, s) {}
 
 		template <class F>
 		void with(F &&fn) {
@@ -350,7 +402,7 @@ class Scope {
 		LambdaState<Traits> *target_state_;
 
 	public:
-		LambdaProxy(Machine<Traits> *m, LambdaState<Traits> *s) : ScopeProxy(m, s), target_state_(s) {}
+		LambdaProxy(Machine<Traits> *sm, LambdaState<Traits> *s) : ScopeProxy(sm, s), target_state_(s) {}
 
 		LambdaProxy &handle(typename LambdaState<Traits>::HandleFn fn) {
 			target_state_->handle_ = std::move(fn);
@@ -374,7 +426,7 @@ private:
 	Machine<Traits> *machine_;
 	State<Traits>   *parent_;
 
-	Scope(Machine<Traits> *m, State<Traits> *s) : machine_(m), parent_(s) {}
+	Scope(Machine<Traits> *sm, State<Traits> *s) : machine_(sm), parent_(s) {}
 
 	bool has_state(typename Traits::StateID id) const {
 		for (const auto &pair : machine_->registry_) {
@@ -448,7 +500,7 @@ class Matcher {
 	bool                          done_   = false;
 
 public:
-	Matcher(Machine<Traits> &m, const typename Traits::Event &e) : sm_(m), ev_(e) {}
+	Matcher(Machine<Traits> &sm, const typename Traits::Event &ev) : sm_(sm), ev_(ev) {}
 
 	// Match a specific event type
 	template <typename TargetEvent, typename Handler>
@@ -478,8 +530,8 @@ public:
 };
 
 template <typename CastPolicy = FastCastPolicy, typename Traits>
-Matcher<CastPolicy, Traits> match(Machine<Traits> &m, const typename Traits::Event &e) {
-	return Matcher<CastPolicy, Traits>(m, e);
+Matcher<CastPolicy, Traits> match(Machine<Traits> &sm, const typename Traits::Event &ev) {
+	return Matcher<CastPolicy, Traits>(sm, ev);
 }
 
 }  // namespace hsm

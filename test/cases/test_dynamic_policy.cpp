@@ -9,7 +9,6 @@ struct Event {
 	virtual ~Event() = default;
 };
 
-// Base event for group match
 struct GroupEvent : Event {};
 
 struct EventA : GroupEvent {};
@@ -25,25 +24,25 @@ struct Traits {
 	};
 };
 
-// Explicitly use DynamicCastPolicy
 using Machine = hsm::Machine<Traits>;
+using Scope   = hsm::Scope<Traits>;
 
 }  // namespace
 
 TEST_CASE("DynamicCastPolicy dispatching (polymorphic match)", "[dynamic_policy]") {
 	Machine sm;
 
-	sm.start(StateID::S1, [](hsm::Scope<Traits>& s) {
-		s.state(StateID::S1).handle([](Machine& m, const Event& ev) {
-			return hsm::match<hsm::DynamicCastPolicy>(m, ev)
+	sm.start(StateID::S1, [](Scope& s) {
+		s.state(StateID::S1).handle([](Machine& sm, const Event& ev) {
+			return hsm::match<hsm::DynamicCastPolicy>(sm, ev)
 				// Match ANY event derived from GroupEvent
-				.on<GroupEvent>([](Machine& m, const GroupEvent&) {
-					m.context().group_count++;
+				.on<GroupEvent>([](Machine& sm, const GroupEvent&) {
+					sm.context().group_count++;
 					return hsm::Result::Done;
 				})
 				// Match specific EventC
-				.on<EventC>([](Machine& m, const EventC&) {
-					m.context().c_count++;
+				.on<EventC>([](Machine& sm, const EventC&) {
+					sm.context().c_count++;
 					return hsm::Result::Done;
 				})
 				.otherwise([](Machine&, const Event&) { return hsm::Result::Pass; });

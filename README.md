@@ -58,25 +58,25 @@ int main() {
 
 	sm.start(OFF, [](Scope& s) {
 		// State: OFF
-		s.state(OFF).on_entry([](Machine&) { printf("State: OFF\n"); }).handle([](Machine& m, const Event& e) {
-			return hsm::match(m, e).template on<Click>([](Machine& m, const Click&) {
+		s.state(OFF).on_entry([](Machine&) { printf("State: OFF\n"); }).handle([](Machine& sm, const Event& ev) {
+			return hsm::match(sm, ev).template on<Click>([](Machine& sm, const Click&) {
 				printf("  --> Switch ON\n");
-				m.transition(ON);
+				sm.transition(ON);
 				return hsm::Result::Done;
 			});
 		});
 
 		// State: ON
-		s.state(ON).on_entry([](Machine&) { printf("State: ON\n"); }).handle([](Machine& m, const Event& e) {
-			return hsm::match(m, e)
-				.template on<Click>([](Machine& m, const Click&) {
+		s.state(ON).on_entry([](Machine&) { printf("State: ON\n"); }).handle([](Machine& sm, const Event& ev) {
+			return hsm::match(sm, ev)
+				.template on<Click>([](Machine& sm, const Click&) {
 					printf("  --> Switch OFF\n");
-					m.transition(OFF);
+					sm.transition(OFF);
 					return hsm::Result::Done;
 				})
-				.template on<Reset>([](Machine& m, const Reset&) {
+				.template on<Reset>([](Machine& sm, const Reset&) {
 					printf("  --> Reset\n");
-					m.transition(OFF);
+					sm.transition(OFF);
 					return hsm::Result::Done;
 				});
 		});

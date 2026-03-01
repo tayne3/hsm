@@ -50,6 +50,7 @@ struct Traits {
 
 using Machine = hsm::Machine<Traits>;
 using State   = hsm::State<Traits>;
+using Scope   = hsm::Scope<Traits>;
 
 struct Approve : Event {
 	static constexpr EventID ID = EventID::APPROVE;
@@ -101,14 +102,14 @@ struct PendingState : public BaseState {
 		BaseState::handle(sm, ev);
 
 		return hsm::match<hsm::TagCastPolicy>(sm, ev)
-			.on<Approve>([](Machine& m, const Approve&) {
-				log_audit(m, "Approved! -> Active");
-				m.transition(StateID::ACTIVE);
+			.on<Approve>([](Machine& sm, const Approve&) {
+				log_audit(sm, "Approved! -> Active");
+				sm.transition(StateID::ACTIVE);
 				return hsm::Result::Done;
 			})
-			.on<Reject>([](Machine& m, const Reject&) {
-				log_audit(m, "Rejected! -> Removed");
-				m.transition(StateID::REMOVED);
+			.on<Reject>([](Machine& sm, const Reject&) {
+				log_audit(sm, "Rejected! -> Removed");
+				sm.transition(StateID::REMOVED);
 				return hsm::Result::Done;
 			})
 			.otherwise([](Machine&, const Event&) { return hsm::Result::Pass; });
@@ -122,14 +123,14 @@ struct ActiveState : public BaseState {
 		BaseState::handle(sm, ev);
 
 		return hsm::match<hsm::TagCastPolicy>(sm, ev)
-			.on<Suspend>([](Machine& m, const Suspend&) {
-				log_audit(m, "Suspended! -> Suspended");
-				m.transition(StateID::SUSPENDED);
+			.on<Suspend>([](Machine& sm, const Suspend&) {
+				log_audit(sm, "Suspended! -> Suspended");
+				sm.transition(StateID::SUSPENDED);
 				return hsm::Result::Done;
 			})
-			.on<Remove>([](Machine& m, const Remove&) {
-				log_audit(m, "Removed! -> Removed");
-				m.transition(StateID::REMOVED);
+			.on<Remove>([](Machine& sm, const Remove&) {
+				log_audit(sm, "Removed! -> Removed");
+				sm.transition(StateID::REMOVED);
 				return hsm::Result::Done;
 			})
 			.otherwise([](Machine&, const Event&) { return hsm::Result::Pass; });
@@ -143,14 +144,14 @@ struct SuspendedState : public BaseState {
 		BaseState::handle(sm, ev);
 
 		return hsm::match<hsm::TagCastPolicy>(sm, ev)
-			.on<Resume>([](Machine& m, const Resume&) {
-				log_audit(m, "Resumed! -> Active");
-				m.transition(StateID::ACTIVE);
+			.on<Resume>([](Machine& sm, const Resume&) {
+				log_audit(sm, "Resumed! -> Active");
+				sm.transition(StateID::ACTIVE);
 				return hsm::Result::Done;
 			})
-			.on<Remove>([](Machine& m, const Remove&) {
-				log_audit(m, "Removed! -> Removed");
-				m.transition(StateID::REMOVED);
+			.on<Remove>([](Machine& sm, const Remove&) {
+				log_audit(sm, "Removed! -> Removed");
+				sm.transition(StateID::REMOVED);
 				return hsm::Result::Done;
 			})
 			.otherwise([](Machine&, const Event&) { return hsm::Result::Pass; });
@@ -167,7 +168,7 @@ int main() {
 	Machine sm;
 	sm.context().agent_name = "Agent-001";
 
-	sm.start(StateID::PENDING, [](hsm::Scope<Traits>& s) {
+	sm.start(StateID::PENDING, [](Scope& s) {
 		s.state<PendingState>(StateID::PENDING);
 		s.state<ActiveState>(StateID::ACTIVE);
 		s.state<SuspendedState>(StateID::SUSPENDED);
