@@ -35,6 +35,14 @@ add_executable(test_dispatch cases/test_dispatch.cpp)
 target_link_libraries(test_dispatch PRIVATE test_main)
 add_test(NAME test_dispatch COMMAND test_dispatch)
 
+add_executable(test_fast_policy cases/test_fast_policy.cpp)
+target_link_libraries(test_fast_policy PRIVATE test_main)
+add_test(NAME test_fast_policy COMMAND test_fast_policy)
+
+add_executable(test_dynamic_policy cases/test_dynamic_policy.cpp)
+target_link_libraries(test_dynamic_policy PRIVATE test_main)
+add_test(NAME test_dynamic_policy COMMAND test_dynamic_policy)
+
 add_executable(test_tag_policy cases/test_tag_policy.cpp)
 target_link_libraries(test_tag_policy PRIVATE test_main)
 add_test(NAME test_tag_policy COMMAND test_tag_policy)
