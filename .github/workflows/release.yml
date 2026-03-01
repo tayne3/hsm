@@ -35,33 +35,43 @@ jobs:
 
           \`\`\`cpp
           #include "hsm.hpp"
-          using namespace hsm;
 
-          // Define Events
-          struct Click : Event {};
+          enum StateID { STATE_OFF, STATE_ON };
 
-          // Define State Machine
-          struct SwitchTraits {
-              using StateID = int;
+          struct Event { virtual ~Event() = default; };
+
+          struct Traits {
+              using StateID = StateID;
               using Event   = Event;
-              using Context = void*;
+              struct Context {};
           };
 
-          // Define States
-          constexpr int OFF = 0;
-          constexpr int ON  = 1;
+          using Machine = hsm::Machine<Traits>;
+          using Scope   = hsm::Scope<Traits>;
+
+          struct Click : Event {};
 
           int main() {
-              Machine<SwitchTraits> sm;
-              sm.start(OFF, [](auto& s) {
-                  s.state(OFF).handle([](auto& m, const Event& e) {
-                      if (e.is<Click>()) m.transition(ON);
-                  });
-                  s.state(ON).handle([](auto& m, const Event& e) {
-                      if (e.is<Click>()) m.transition(OFF);
-                  });
+              Machine sm;
+              sm.start(STATE_OFF, [](Scope& s) {
+                  s.state(STATE_OFF)
+                      .handle([](Machine& sm, const Event& ev) {
+                          return hsm::match(sm, ev).template on<Click>([](Machine& sm, const Click&) {
+                              sm.transition(STATE_ON);
+                              return hsm::Result::Done;
+                          });
+                      });
+
+                  s.state(STATE_ON)
+                      .handle([](Machine& sm, const Event& ev) {
+                          return hsm::match(sm, ev).template on<Click>([](Machine& sm, const Click&) {
+                              sm.transition(STATE_OFF);
+                              return hsm::Result::Done;
+                          });
+                      });
               });
-              sm.handle(Click{});
+
+              sm.dispatch(Click{});
           }
           \`\`\`
           EOF
