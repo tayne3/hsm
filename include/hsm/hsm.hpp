@@ -417,6 +417,14 @@ public:
 // Event Dispatcher Helper
 // ============================================================================
 
+struct FastCastPolicy {
+	template <typename Specific, typename Base>
+	static const Specific *apply(const Base &b) {
+		if (typeid(b) == typeid(Specific)) { return static_cast<const Specific *>(&b); }
+		return nullptr;
+	}
+};
+
 struct DynamicCastPolicy {
 	template <typename Specific, typename Base>
 	static const Specific *apply(const Base &b) {
@@ -424,10 +432,10 @@ struct DynamicCastPolicy {
 	}
 };
 
-struct FastCastPolicy {
+struct TagCastPolicy {
 	template <typename Specific, typename Base>
 	static const Specific *apply(const Base &b) {
-		if (typeid(b) == typeid(Specific)) { return static_cast<const Specific *>(&b); }
+		if (b.id == Specific::ID) { return static_cast<const Specific *>(&b); }
 		return nullptr;
 	}
 };

@@ -52,19 +52,24 @@ using Machine = hsm::Machine<Traits>;
 using State   = hsm::State<Traits>;
 
 struct Approve : Event {
-	Approve() : Event(EventID::APPROVE) {}
+	static constexpr EventID ID = EventID::APPROVE;
+	Approve() : Event(ID) {}
 };
 struct Reject : Event {
-	Reject() : Event(EventID::REJECT) {}
+	static constexpr EventID ID = EventID::REJECT;
+	Reject() : Event(ID) {}
 };
 struct Suspend : Event {
-	Suspend() : Event(EventID::SUSPEND) {}
+	static constexpr EventID ID = EventID::SUSPEND;
+	Suspend() : Event(ID) {}
 };
 struct Resume : Event {
-	Resume() : Event(EventID::RESUME) {}
+	static constexpr EventID ID = EventID::RESUME;
+	Resume() : Event(ID) {}
 };
 struct Remove : Event {
-	Remove() : Event(EventID::REMOVE) {}
+	static constexpr EventID ID = EventID::REMOVE;
+	Remove() : Event(ID) {}
 };
 
 void log_audit(Machine& sm, const std::string& action) {
@@ -74,16 +79,12 @@ void log_audit(Machine& sm, const std::string& action) {
 
 struct BaseState : public State {
 	BaseState(const char* n) : name_(n ? n : "Base") {}
-
 	const char* get_name() const { return name_.c_str(); }
-
-	void on_entry(Machine&) override { printf("[%s] on entry\n", get_name()); }
-
-	void on_exit(Machine& sm) override {
-		printf("[%s] on exit\n", get_name());
-		log_audit(sm, std::string("exit ") + get_name());
+	void        on_entry(Machine&) override { printf("[%s] on entry\n", get_name()); }
+	void        on_exit(Machine& sm) override {
+        printf("[%s] on exit\n", get_name());
+        log_audit(sm, std::string("exit ") + get_name());
 	}
-
 	hsm::Result handle(Machine& sm, const Event&) override {
 		log_audit(sm, std::string(get_name()) + " received event");
 		return hsm::Result::Pass;
@@ -99,17 +100,18 @@ struct PendingState : public BaseState {
 	hsm::Result handle(Machine& sm, const Event& ev) override {
 		BaseState::handle(sm, ev);
 
-		switch (ev.id) {
-			case EventID::APPROVE:
-				log_audit(sm, "Approved! -> Active");
-				sm.transition(StateID::ACTIVE);
+		return hsm::match<hsm::TagCastPolicy>(sm, ev)
+			.on<Approve>([](Machine& m, const Approve&) {
+				log_audit(m, "Approved! -> Active");
+				m.transition(StateID::ACTIVE);
 				return hsm::Result::Done;
-			case EventID::REJECT:
-				log_audit(sm, "Rejected! -> Removed");
-				sm.transition(StateID::REMOVED);
+			})
+			.on<Reject>([](Machine& m, const Reject&) {
+				log_audit(m, "Rejected! -> Removed");
+				m.transition(StateID::REMOVED);
 				return hsm::Result::Done;
-			default: return hsm::Result::Pass;
-		}
+			})
+			.otherwise([](Machine&, const Event&) { return hsm::Result::Pass; });
 	}
 };
 
@@ -119,17 +121,18 @@ struct ActiveState : public BaseState {
 	hsm::Result handle(Machine& sm, const Event& ev) override {
 		BaseState::handle(sm, ev);
 
-		switch (ev.id) {
-			case EventID::SUSPEND:
-				log_audit(sm, "Suspended! -> Suspended");
-				sm.transition(StateID::SUSPENDED);
+		return hsm::match<hsm::TagCastPolicy>(sm, ev)
+			.on<Suspend>([](Machine& m, const Suspend&) {
+				log_audit(m, "Suspended! -> Suspended");
+				m.transition(StateID::SUSPENDED);
 				return hsm::Result::Done;
-			case EventID::REMOVE:
-				log_audit(sm, "Removed! -> Removed");
-				sm.transition(StateID::REMOVED);
+			})
+			.on<Remove>([](Machine& m, const Remove&) {
+				log_audit(m, "Removed! -> Removed");
+				m.transition(StateID::REMOVED);
 				return hsm::Result::Done;
-			default: return hsm::Result::Pass;
-		}
+			})
+			.otherwise([](Machine&, const Event&) { return hsm::Result::Pass; });
 	}
 };
 
@@ -139,17 +142,18 @@ struct SuspendedState : public BaseState {
 	hsm::Result handle(Machine& sm, const Event& ev) override {
 		BaseState::handle(sm, ev);
 
-		switch (ev.id) {
-			case EventID::RESUME:
-				log_audit(sm, "Resumed! -> Active");
-				sm.transition(StateID::ACTIVE);
+		return hsm::match<hsm::TagCastPolicy>(sm, ev)
+			.on<Resume>([](Machine& m, const Resume&) {
+				log_audit(m, "Resumed! -> Active");
+				m.transition(StateID::ACTIVE);
 				return hsm::Result::Done;
-			case EventID::REMOVE:
-				log_audit(sm, "Removed! -> Removed");
-				sm.transition(StateID::REMOVED);
+			})
+			.on<Remove>([](Machine& m, const Remove&) {
+				log_audit(m, "Removed! -> Removed");
+				m.transition(StateID::REMOVED);
 				return hsm::Result::Done;
-			default: return hsm::Result::Pass;
-		}
+			})
+			.otherwise([](Machine&, const Event&) { return hsm::Result::Pass; });
 	}
 };
 
