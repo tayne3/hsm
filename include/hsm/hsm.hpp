@@ -1,4 +1,6 @@
 /*
+ * HSM Version 0.1.3
+ *
  * MIT License
  *
  * Copyright (c) 2026 tayne3
