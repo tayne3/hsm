@@ -1,11 +1,16 @@
-#include <catch.hpp>
-#include <hsm/hsm.hpp>
 #include <string>
 #include <vector>
 
+#include "catch.hpp"
+#include "hsm/hsm.hpp"
+
 namespace {
 
-enum class CallType { Entry, Run, Exit };
+enum class CallType {
+	Entry,
+	Run,
+	Exit,
+};
 
 struct CallRecord {
 	CallType    type;
@@ -25,43 +30,47 @@ std::ostream& operator<<(std::ostream& os, const CallRecord& record) {
 	return os;
 }
 
-struct TestContext {
-	std::vector<CallRecord> calls;
-	void                    log(CallType type, const char* name) { calls.push_back({type, name}); }
-	void                    clear() { calls.clear(); }
+enum StateID {
+	ID_Idle,
+	ID_Active,
+	ID_Busy,
 };
 
 struct Event {};
-enum StateID { ID_Idle, ID_Active };
-
-struct TestTraits {
-	using Context = TestContext;
+struct Traits {
+	struct Context {
+		std::vector<CallRecord> calls;
+		void                    log(CallType type, const char* name) { calls.push_back({type, name}); }
+		void                    clear() { calls.clear(); }
+	};
 	using Event   = Event;
 	using StateID = StateID;
 };
 
-using AppState = hsm::State<TestTraits>;
+using TestState   = hsm::State<Traits>;
+using TestMachine = hsm::Machine<Traits>;
+using TestScope   = hsm::Scope<Traits>;
 
-class IdleState : public AppState {
+class IdleState : public TestState {
 public:
 	const char* name() const override { return "Idle"; }
 
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
-	void        on_exit(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Exit, name()); }
-	hsm::Result handle(hsm::Machine<TestTraits>& sm, const Event&) override {
-		sm.context().log(CallType::Run, name());
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
+	void        on_exit(TestMachine& sm) override { sm->log(CallType::Exit, name()); }
+	hsm::Result handle(TestMachine& sm, const Event&) override {
+		sm->log(CallType::Run, name());
 		return hsm::Result::Done;
 	}
 };
 
-class ActiveState : public AppState {
+class ActiveState : public TestState {
 public:
 	const char* name() const override { return "Active"; }
 
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
-	void        on_exit(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Exit, name()); }
-	hsm::Result handle(hsm::Machine<TestTraits>& sm, const Event&) override {
-		sm.context().log(CallType::Run, name());
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
+	void        on_exit(TestMachine& sm) override { sm->log(CallType::Exit, name()); }
+	hsm::Result handle(TestMachine& sm, const Event&) override {
+		sm->log(CallType::Run, name());
 		return hsm::Result::Done;
 	}
 };
@@ -69,59 +78,113 @@ public:
 }  // namespace
 
 TEST_CASE("Basic State Machine Operations", "[basic]") {
-	hsm::Machine<TestTraits> sm;
-
-	auto config = [](hsm::Scope<TestTraits>& root) {
+	TestMachine sm;
+	sm.start(ID_Idle, [](TestScope& root) {
 		root.state<IdleState>(ID_Idle);
 		root.state<ActiveState>(ID_Active);
-	};
+	});
 
 	SECTION("Initialization") {
-		sm.start(ID_Idle, config);
 		REQUIRE(sm.context().calls.size() == 1);
+		REQUIRE(sm->calls.size() == 1);
 		CHECK(sm.context().calls[0] == CallRecord{CallType::Entry, "Idle"});
+		CHECK(sm->calls[0] == CallRecord{CallType::Entry, "Idle"});
 	}
 
 	SECTION("Simple Transition") {
-		sm.start(ID_Idle, config);
-		sm.context().clear();
+		sm->clear();
 
 		sm.transition(ID_Active);
-		sm.handle();
+		sm.dispatch();
 
-		REQUIRE(sm.context().calls.size() == 3);
+		REQUIRE(sm->calls.size() == 3);
 		// 1. Run Idle
 		// 2. Exit Idle
 		// 3. Entry Active
-		CHECK(sm.context().calls[0] == CallRecord{CallType::Run, "Idle"});
-		CHECK(sm.context().calls[1] == CallRecord{CallType::Exit, "Idle"});
-		CHECK(sm.context().calls[2] == CallRecord{CallType::Entry, "Active"});
+		CHECK(sm->calls[0] == CallRecord{CallType::Run, "Idle"});
+		CHECK(sm->calls[1] == CallRecord{CallType::Exit, "Idle"});
+		CHECK(sm->calls[2] == CallRecord{CallType::Entry, "Active"});
 	}
 
 	SECTION("Entry Run Exit Order") {
-		sm.start(ID_Idle, config);
 		sm.transition(ID_Active);
-		sm.context().clear();
+		sm->clear();
 
-		sm.handle();  // Transitions to Active (Idle Run -> Exit Idle -> Entry Active)
+		sm.dispatch();  // Transitions to Active (Idle Run -> Exit Idle -> Entry Active)
 
-		sm.context().clear();
-		sm.handle();  // Run Active
+		sm->clear();
+		sm.dispatch();  // Run Active
 
-		REQUIRE(sm.context().calls.size() == 1);
-		CHECK(sm.context().calls[0] == CallRecord{CallType::Run, "Active"});
+		REQUIRE(sm->calls.size() == 1);
+		CHECK(sm->calls[0] == CallRecord{CallType::Run, "Active"});
 	}
 
 	SECTION("Self Transition via transition") {
-		sm.start(ID_Idle, config);
-		sm.context().clear();
+		sm->clear();
 
 		sm.transition(ID_Idle);
-		sm.handle();  // Run Idle -> Exit Idle -> Entry Idle
+		sm.dispatch();  // Run Idle -> Exit Idle -> Entry Idle
 
-		REQUIRE(sm.context().calls.size() == 3);
-		CHECK(sm.context().calls[0] == CallRecord{CallType::Run, "Idle"});
-		CHECK(sm.context().calls[1] == CallRecord{CallType::Exit, "Idle"});
-		CHECK(sm.context().calls[2] == CallRecord{CallType::Entry, "Idle"});
+		REQUIRE(sm->calls.size() == 3);
+		CHECK(sm->calls[0] == CallRecord{CallType::Run, "Idle"});
+		CHECK(sm->calls[1] == CallRecord{CallType::Exit, "Idle"});
+		CHECK(sm->calls[2] == CallRecord{CallType::Entry, "Idle"});
+	}
+}
+
+TEST_CASE("Exception Handling", "[exception]") {
+	TestMachine sm;
+
+	SECTION("start() throws if already started") {
+		sm.start(ID_Idle, [](TestScope& root) { root.state<IdleState>(ID_Idle); });
+		REQUIRE_THROWS_AS(sm.start(ID_Idle, [](TestScope& root) { root.state<IdleState>(ID_Idle); }), std::logic_error);
+	}
+
+	SECTION("start() throws if initial state ID not found") {
+		REQUIRE_THROWS_AS(sm.start(ID_Active, [](TestScope& root) { root.state<IdleState>(ID_Idle); }), std::invalid_argument);
+	}
+
+	SECTION("transition() throws if target state ID not found") {
+		sm.start(ID_Active, [](TestScope& root) { root.state<ActiveState>(ID_Active); });
+		REQUIRE_THROWS_AS(sm.transition(ID_Idle), std::runtime_error);
+	}
+
+	SECTION("transition() throws during Exit phase") {
+		TestMachine sm;
+		sm.start(ID_Idle, [](TestScope& root) {
+			root.state(ID_Idle).on_exit([](TestMachine& sm) { sm.transition(ID_Active); });
+			root.state<ActiveState>(ID_Active);
+		});
+		sm.transition(ID_Active);
+		REQUIRE_THROWS_AS(sm.dispatch(), std::runtime_error);
+	}
+
+	SECTION("Duplicate StateID throws 1") {
+		REQUIRE_THROWS_AS(sm.start(ID_Idle,
+								   [](TestScope& root) {
+									   root.state<ActiveState>(ID_Active);
+									   root.state<IdleState>(ID_Idle);
+									   root.state<ActiveState>(ID_Active);
+								   }),
+						  std::invalid_argument);
+	}
+
+	SECTION("Duplicate StateID throws 2") {
+		REQUIRE_THROWS_AS(sm.start(ID_Idle,
+								   [](TestScope& root) {
+									   root.state(ID_Idle);
+									   root.state(ID_Active);
+									   root.state(ID_Idle);
+								   }),
+						  std::invalid_argument);
+	}
+
+	SECTION("Duplicate StateID throws 3") {
+		REQUIRE_THROWS_AS(sm.start(ID_Idle,
+								   [](TestScope& root) {
+									   root.state(ID_Idle);
+									   root.state<IdleState>(ID_Idle);
+								   }),
+						  std::invalid_argument);
 	}
 }

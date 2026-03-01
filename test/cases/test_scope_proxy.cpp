@@ -1,29 +1,34 @@
-#include <catch.hpp>
-#include <hsm/hsm.hpp>
 #include <string>
 #include <vector>
 
+#include "catch.hpp"
+#include "hsm/hsm.hpp"
+
 namespace {
 
-struct Event {};
-enum StateID { ID_Root, ID_Child, ID_GrandChild };
+enum StateID {
+	ID_Root,
+	ID_Child,
+	ID_GrandChild,
+};
 
-struct TestTraits {
+struct Event {};
+struct Traits {
 	using Context = std::vector<std::string>;
 	using Event   = Event;
 	using StateID = StateID;
 };
-
-using Machine = hsm::Machine<TestTraits>;
-using Scope   = hsm::Scope<TestTraits>;
+using Machine = hsm::Machine<Traits>;
+using State   = hsm::State<Traits>;
+using Scope   = hsm::Scope<Traits>;
 
 // Class-based State for Track 1
-struct ClassState : hsm::State<TestTraits> {
+struct ClassState : State {
 	const char* name_val;
 	ClassState(const char* n) : name_val(n) {}
 
 	const char* name() const override { return name_val; }
-	void        on_entry(Machine& sm) override { sm.context().push_back(std::string(name()) + "_Entry"); }
+	void        on_entry(Machine& sm) override { sm->push_back(std::string(name()) + "_Entry"); }
 };
 
 }  // namespace
@@ -33,52 +38,48 @@ TEST_CASE("Scope Proxy Dual-Track API", "[scope]") {
 
 	SECTION("Track 1: Class State Hierarchy") {
 		// config: Root(Class) -> Child(Class)
-		auto config = [](Scope& root) { root.state<ClassState>(ID_Root, "Root").with([](Scope& s) { s.state<ClassState>(ID_Child, "Child"); }); };
-
-		sm.start(ID_Root, config);
+		sm.start(ID_Root, [](Scope& root) { root.state<ClassState>(ID_Root, "Root").with([](Scope& s) { s.state<ClassState>(ID_Child, "Child"); }); });
 
 		// Check Entry logs: Root_Entry
-		REQUIRE(sm.context().size() == 1);
+		REQUIRE(sm->size() == 1);
 		CHECK(sm.context()[0] == "Root_Entry");
 
 		// Transition to Child
 		sm.transition(ID_Child);
-		sm.handle();
+		sm.dispatch();
 
 		// Check logs: Root_Entry, Child_Entry
-		REQUIRE(sm.context().size() == 2);
+		REQUIRE(sm->size() == 2);
 		CHECK(sm.context()[1] == "Child_Entry");
 	}
 
 	SECTION("Track 2: Lambda State Fluent Config") {
 		// config: Root(Lambda) -> Child(Lambda)
 		// Verify fluent API order independence
-		auto config = [](Scope& root) {
+		sm.start(ID_Root, [](Scope& root) {
 			root.state(ID_Root).name("RootLambda").on_entry([](Machine& m) { m.context().push_back("Root_Entry"); }).with([](Scope& s) {
 				s.state(ID_Child)
 					// Calling name() last shouldn't break anything
 					.on_entry([](Machine& m) { m.context().push_back("Child_Entry"); })
 					.name("ChildLambda");
 			});
-		};
+		});
 
-		sm.start(ID_Root, config);
-
-		REQUIRE(sm.context().size() == 1);
+		REQUIRE(sm->size() == 1);
 		CHECK(sm.context()[0] == "Root_Entry");
 		CHECK(sm.current_state_id() == ID_Root);
 
 		sm.transition(ID_Child);
-		sm.handle();
+		sm.dispatch();
 
-		REQUIRE(sm.context().size() == 2);
+		REQUIRE(sm->size() == 2);
 		CHECK(sm.context()[1] == "Child_Entry");
 		CHECK(sm.current_state_id() == ID_Child);
 	}
 
 	SECTION("Mixed Hierarchy") {
 		// Root(Class) -> Child(Lambda) -> GrandChild(Class)
-		auto config = [](Scope& root) {
+		sm.start(ID_Root, [](Scope& root) {
 			root.state<ClassState>(ID_Root, "Root").with([](Scope& s) {
 				s.state(ID_Child)
 					.name("ChildLambda")
@@ -89,18 +90,16 @@ TEST_CASE("Scope Proxy Dual-Track API", "[scope]") {
 					})
 					.with([](Scope& s) { s.state<ClassState>(ID_GrandChild, "GrandChild"); });
 			});
-		};
-
-		sm.start(ID_Root, config);
-		CHECK(sm.context().back() == "Root_Entry");
+		});
+		CHECK(sm->back() == "Root_Entry");
 
 		sm.transition(ID_Child);
-		sm.handle();
-		CHECK(sm.context().back() == "Child_Entry");
+		sm.dispatch();
+		CHECK(sm->back() == "Child_Entry");
 
 		// Dispatch event handled by Lambda Child to transition to Class GrandChild
-		sm.handle(Event{});
-		CHECK(sm.context().back() == "GrandChild_Entry");
+		sm.dispatch();
+		CHECK(sm->back() == "GrandChild_Entry");
 		CHECK(sm.current_state_id() == ID_GrandChild);
 	}
 }

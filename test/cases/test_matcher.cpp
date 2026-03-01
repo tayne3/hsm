@@ -1,11 +1,11 @@
-#include <catch.hpp>
-#include <hsm/hsm.hpp>
-#include <iostream>
-#include <string>
+#include "catch.hpp"
+#include "hsm/hsm.hpp"
 
 // ============================================================================
 // Standard Polymorphic Events (DefaultCastPolicy)
 // ============================================================================
+
+namespace {
 
 struct BaseEvent {
 	virtual ~BaseEvent() = default;
@@ -16,12 +16,12 @@ struct ClickEvent : BaseEvent {
 	ClickEvent(int x, int y) : x(x), y(y) {}
 };
 
-struct KeyEvent : BaseEvent {
+struct KeyEvent : public BaseEvent {
 	int key_code;
 	KeyEvent(int k) : key_code(k) {}
 };
 
-struct UnknownEvent : BaseEvent {};
+struct UnknownEvent : public BaseEvent {};
 
 struct DispatchContext {
 	std::string log;
@@ -33,7 +33,7 @@ struct DispatchTraits {
 	using Context = DispatchContext;
 };
 
-struct DispatchState : hsm::State<DispatchTraits> {
+struct DispatchState : public hsm::State<DispatchTraits> {
 	hsm::Result handle(hsm::Machine<DispatchTraits> &m, const Event &e) override {
 		// Use the new match helper with default policy
 		return hsm::match(m, e)
@@ -52,6 +52,8 @@ struct DispatchState : hsm::State<DispatchTraits> {
 	}
 };
 
+}  // namespace
+
 TEST_CASE("Event Matcher Helper - Default Policy", "[hsm][match]") {
 	hsm::Machine<DispatchTraits> machine;
 
@@ -59,19 +61,19 @@ TEST_CASE("Event Matcher Helper - Default Policy", "[hsm][match]") {
 
 	SECTION("Match ClickEvent") {
 		ClickEvent e(10, 20);
-		machine.handle(e);
+		machine.dispatch(e);
 		REQUIRE(machine.context().log == "Click(10,20);");
 	}
 
 	SECTION("Match KeyEvent") {
 		KeyEvent e(65);
-		machine.handle(e);
+		machine.dispatch(e);
 		REQUIRE(machine.context().log == "Key(65);");
 	}
 
 	SECTION("Match Unhandled Event") {
 		UnknownEvent e;
-		machine.handle(e);
+		machine.dispatch(e);
 		REQUIRE(machine.context().log == "Unhandled;");
 	}
 }
@@ -80,7 +82,12 @@ TEST_CASE("Event Matcher Helper - Default Policy", "[hsm][match]") {
 // Enum-based Events (Custom CastPolicy)
 // ============================================================================
 
-enum class EventType { MOUSE, KEYBOARD };
+namespace {
+
+enum class EventType {
+	MOUSE,
+	KEYBOARD,
+};
 
 struct MyEventBase {
 	EventType type;
@@ -128,6 +135,8 @@ struct CustomState : hsm::State<CustomTraits> {
 	}
 };
 
+}  // namespace
+
 TEST_CASE("Event Matcher Helper - Custom Policy", "[hsm][match]") {
 	hsm::Machine<CustomTraits> machine;
 
@@ -135,13 +144,13 @@ TEST_CASE("Event Matcher Helper - Custom Policy", "[hsm][match]") {
 
 	SECTION("Match MouseEvent via Custom Policy") {
 		MouseEvent e;
-		machine.handle(e);
+		machine.dispatch(e);
 		REQUIRE(machine.context().log == "Mouse;");
 	}
 
 	SECTION("Match KeyboardEvent via Custom Policy") {
 		KeyboardEvent e;
-		machine.handle(e);
+		machine.dispatch(e);
 		REQUIRE(machine.context().log == "Keyboard;");
 	}
 }

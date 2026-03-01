@@ -1,7 +1,8 @@
-#include <catch.hpp>
-#include <hsm/hsm.hpp>
 #include <string>
 #include <vector>
+
+#include "catch.hpp"
+#include "hsm/hsm.hpp"
 
 namespace {
 
@@ -26,22 +27,31 @@ std::ostream& operator<<(std::ostream& os, const CallRecord& record) {
 	return os;
 }
 
-struct TestContext {
-	std::vector<CallRecord> calls;
-	void                    log(CallType type, const char* name) { calls.push_back({type, name}); }
-	void                    clear() { calls.clear(); }
+struct Event {};
+enum StateID {
+	ID_P05,
+	ID_P04,
+	ID_P03,
+	ID_P02,
+	ID_P01,
+	ID_StateA,
+	ID_StateB,
+	ID_StateC,
+	ID_StateD,
 };
 
-struct Event {};
-enum StateID { ID_P05, ID_P04, ID_P03, ID_P02, ID_P01, ID_StateA, ID_StateB, ID_StateC, ID_StateD };
-
 struct TestTraits {
-	using Context = TestContext;
+	struct Context {
+		std::vector<CallRecord> calls;
+		void                    log(CallType type, const char* name) { calls.push_back({type, name}); }
+		void                    clear() { calls.clear(); }
+	};
 	using Event   = Event;
 	using StateID = StateID;
 };
 
-using AppState = hsm::State<TestTraits>;
+using TestState   = hsm::State<TestTraits>;
+using TestMachine = hsm::Machine<TestTraits>;
 
 // Forward declarations
 class P05;
@@ -55,106 +65,106 @@ class StateC;
 class StateD;
 
 // Root
-class P05 : public AppState {
+class P05 : public TestState {
 public:
 	const char* name() const override { return "P05"; }
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
-	void        on_exit(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Exit, name()); }
-	hsm::Result handle(hsm::Machine<TestTraits>& sm, const Event&) override;
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
+	void        on_exit(TestMachine& sm) override { sm->log(CallType::Exit, name()); }
+	hsm::Result handle(TestMachine& sm, const Event&) override;
 };
 
-class P04 : public AppState {
+class P04 : public TestState {
 public:
 	const char* name() const override { return "P04"; }
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
-	void        on_exit(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Exit, name()); }
-	hsm::Result handle(hsm::Machine<TestTraits>& sm, const Event&) override {
-		sm.context().log(CallType::Run, name());
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
+	void        on_exit(TestMachine& sm) override { sm->log(CallType::Exit, name()); }
+	hsm::Result handle(TestMachine& sm, const Event&) override {
+		sm->log(CallType::Run, name());
 		return hsm::Result::Pass;
 	}
 };
 
-class P03 : public AppState {
+class P03 : public TestState {
 public:
 	const char* name() const override { return "P03"; }
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
-	void        on_exit(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Exit, name()); }
-	hsm::Result handle(hsm::Machine<TestTraits>& sm, const Event&) override {
-		sm.context().log(CallType::Run, name());
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
+	void        on_exit(TestMachine& sm) override { sm->log(CallType::Exit, name()); }
+	hsm::Result handle(TestMachine& sm, const Event&) override {
+		sm->log(CallType::Run, name());
 		return hsm::Result::Pass;
 	}
 };
 
-class P02 : public AppState {
+class P02 : public TestState {
 public:
 	const char* name() const override { return "P02"; }
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
-	void        on_exit(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Exit, name()); }
-	hsm::Result handle(hsm::Machine<TestTraits>& sm, const Event&) override {
-		sm.context().log(CallType::Run, name());
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
+	void        on_exit(TestMachine& sm) override { sm->log(CallType::Exit, name()); }
+	hsm::Result handle(TestMachine& sm, const Event&) override {
+		sm->log(CallType::Run, name());
 		return hsm::Result::Pass;
 	}
 };
 
-class P01 : public AppState {
+class P01 : public TestState {
 public:
 	const char* name() const override { return "P01"; }
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
-	void        on_exit(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Exit, name()); }
-	hsm::Result handle(hsm::Machine<TestTraits>& sm, const Event&) override {
-		sm.context().log(CallType::Run, name());
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
+	void        on_exit(TestMachine& sm) override { sm->log(CallType::Exit, name()); }
+	hsm::Result handle(TestMachine& sm, const Event&) override {
+		sm->log(CallType::Run, name());
 		return hsm::Result::Pass;
 	}
 };
 
-class StateA : public AppState {
+class StateA : public TestState {
 public:
 	const char* name() const override { return "StateA"; }
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
-	void        on_exit(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Exit, name()); }
-	hsm::Result handle(hsm::Machine<TestTraits>& sm, const Event&) override;
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
+	void        on_exit(TestMachine& sm) override { sm->log(CallType::Exit, name()); }
+	hsm::Result handle(TestMachine& sm, const Event&) override;
 };
 
-class StateB : public AppState {
+class StateB : public TestState {
 public:
 	const char* name() const override { return "StateB"; }
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
-	void        on_exit(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Exit, name()); }
-	hsm::Result handle(hsm::Machine<TestTraits>& sm, const Event&) override {
-		sm.context().log(CallType::Run, name());
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
+	void        on_exit(TestMachine& sm) override { sm->log(CallType::Exit, name()); }
+	hsm::Result handle(TestMachine& sm, const Event&) override {
+		sm->log(CallType::Run, name());
 		return hsm::Result::Pass;
 	}
 };
 
-class StateC : public AppState {
+class StateC : public TestState {
 public:
 	const char* name() const override { return "StateC"; }
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
-	void        on_exit(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Exit, name()); }
-	hsm::Result handle(hsm::Machine<TestTraits>& sm, const Event&) override;
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
+	void        on_exit(TestMachine& sm) override { sm->log(CallType::Exit, name()); }
+	hsm::Result handle(TestMachine& sm, const Event&) override;
 };
 
-class StateD : public AppState {
+class StateD : public TestState {
 public:
 	const char* name() const override { return "StateD"; }
-	void        on_entry(hsm::Machine<TestTraits>& sm) override { sm.context().log(CallType::Entry, name()); }
+	void        on_entry(TestMachine& sm) override { sm->log(CallType::Entry, name()); }
 };
 
 // Implementations requiring forward declared classes
-hsm::Result P05::handle(hsm::Machine<TestTraits>& sm, const Event&) {
-	sm.context().log(CallType::Run, name());
+hsm::Result P05::handle(TestMachine& sm, const Event&) {
+	sm->log(CallType::Run, name());
 	sm.transition(ID_StateC);
 	return hsm::Result::Pass;
 }
 
-hsm::Result StateA::handle(hsm::Machine<TestTraits>& sm, const Event&) {
-	sm.context().log(CallType::Run, name());
+hsm::Result StateA::handle(TestMachine& sm, const Event&) {
+	sm->log(CallType::Run, name());
 	sm.transition(ID_StateB);
 	return hsm::Result::Pass;
 }
 
-hsm::Result StateC::handle(hsm::Machine<TestTraits>& sm, const Event&) {
-	sm.context().log(CallType::Run, name());
+hsm::Result StateC::handle(TestMachine& sm, const Event&) {
+	sm->log(CallType::Run, name());
 	sm.transition(ID_StateD);
 	return hsm::Result::Done;
 }
@@ -162,9 +172,10 @@ hsm::Result StateC::handle(hsm::Machine<TestTraits>& sm, const Event&) {
 }  // namespace
 
 TEST_CASE("Ancestor Propagation and Transition", "[ancestor]") {
-	hsm::Machine<TestTraits> sm;
+	TestMachine sm;
 
-	auto config = [](hsm::Scope<TestTraits>& root) {
+	// 1. Start A
+	sm.start(ID_StateA, [](hsm::Scope<TestTraits>& root) {
 		root.state<P05>(ID_P05).with([](hsm::Scope<TestTraits>& p05) {
 			p05.state<P04>(ID_P04).with([](hsm::Scope<TestTraits>& p04) {
 				p04.state<P03>(ID_P03).with([](hsm::Scope<TestTraits>& p03) {
@@ -180,57 +191,54 @@ TEST_CASE("Ancestor Propagation and Transition", "[ancestor]") {
 
 		root.state<StateC>(ID_StateC);
 		root.state<StateD>(ID_StateD);
-	};
-
-	// 1. Start A
-	sm.start(ID_StateA, config);
+	});
 
 	// Check entry order: P05 -> P04 -> P03 -> P02 -> P01 -> A
-	REQUIRE(sm.context().calls.size() == 6);
-	CHECK(sm.context().calls[0] == CallRecord{CallType::Entry, "P05"});
-	CHECK(sm.context().calls[1] == CallRecord{CallType::Entry, "P04"});
-	CHECK(sm.context().calls[2] == CallRecord{CallType::Entry, "P03"});
-	CHECK(sm.context().calls[3] == CallRecord{CallType::Entry, "P02"});
-	CHECK(sm.context().calls[4] == CallRecord{CallType::Entry, "P01"});
-	CHECK(sm.context().calls[5] == CallRecord{CallType::Entry, "StateA"});
+	REQUIRE(sm->calls.size() == 6);
+	CHECK(sm->calls[0] == CallRecord{CallType::Entry, "P05"});
+	CHECK(sm->calls[1] == CallRecord{CallType::Entry, "P04"});
+	CHECK(sm->calls[2] == CallRecord{CallType::Entry, "P03"});
+	CHECK(sm->calls[3] == CallRecord{CallType::Entry, "P02"});
+	CHECK(sm->calls[4] == CallRecord{CallType::Entry, "P01"});
+	CHECK(sm->calls[5] == CallRecord{CallType::Entry, "StateA"});
 
-	sm.context().clear();
+	sm->clear();
 
 	// 2. Run A -> Transition to B
 	// A run (Propagate but transition stops it) -> Exit A -> Entry B
-	sm.handle(Event{});
+	sm.dispatch();
 
-	REQUIRE(sm.context().calls.size() == 3);
-	CHECK(sm.context().calls[0] == CallRecord{CallType::Run, "StateA"});
-	CHECK(sm.context().calls[1] == CallRecord{CallType::Exit, "StateA"});
-	CHECK(sm.context().calls[2] == CallRecord{CallType::Entry, "StateB"});
+	REQUIRE(sm->calls.size() == 3);
+	CHECK(sm->calls[0] == CallRecord{CallType::Run, "StateA"});
+	CHECK(sm->calls[1] == CallRecord{CallType::Exit, "StateA"});
+	CHECK(sm->calls[2] == CallRecord{CallType::Entry, "StateB"});
 
-	sm.context().clear();
+	sm->clear();
 
 	// 3. Run B -> Propagate up to P05 -> Transition to C
-	sm.handle(Event{});
+	sm.dispatch();
 
-	REQUIRE(sm.context().calls.size() == 13);
-	CHECK(sm.context().calls[0] == CallRecord{CallType::Run, "StateB"});
-	CHECK(sm.context().calls[1] == CallRecord{CallType::Run, "P01"});
-	CHECK(sm.context().calls[2] == CallRecord{CallType::Run, "P02"});
-	CHECK(sm.context().calls[3] == CallRecord{CallType::Run, "P03"});
-	CHECK(sm.context().calls[4] == CallRecord{CallType::Run, "P04"});
-	CHECK(sm.context().calls[5] == CallRecord{CallType::Run, "P05"});
-	CHECK(sm.context().calls[6] == CallRecord{CallType::Exit, "StateB"});
-	CHECK(sm.context().calls[7] == CallRecord{CallType::Exit, "P01"});
-	CHECK(sm.context().calls[8] == CallRecord{CallType::Exit, "P02"});
-	CHECK(sm.context().calls[9] == CallRecord{CallType::Exit, "P03"});
-	CHECK(sm.context().calls[10] == CallRecord{CallType::Exit, "P04"});
-	CHECK(sm.context().calls[11] == CallRecord{CallType::Exit, "P05"});
-	CHECK(sm.context().calls[12] == CallRecord{CallType::Entry, "StateC"});
+	REQUIRE(sm->calls.size() == 13);
+	CHECK(sm->calls[0] == CallRecord{CallType::Run, "StateB"});
+	CHECK(sm->calls[1] == CallRecord{CallType::Run, "P01"});
+	CHECK(sm->calls[2] == CallRecord{CallType::Run, "P02"});
+	CHECK(sm->calls[3] == CallRecord{CallType::Run, "P03"});
+	CHECK(sm->calls[4] == CallRecord{CallType::Run, "P04"});
+	CHECK(sm->calls[5] == CallRecord{CallType::Run, "P05"});
+	CHECK(sm->calls[6] == CallRecord{CallType::Exit, "StateB"});
+	CHECK(sm->calls[7] == CallRecord{CallType::Exit, "P01"});
+	CHECK(sm->calls[8] == CallRecord{CallType::Exit, "P02"});
+	CHECK(sm->calls[9] == CallRecord{CallType::Exit, "P03"});
+	CHECK(sm->calls[10] == CallRecord{CallType::Exit, "P04"});
+	CHECK(sm->calls[11] == CallRecord{CallType::Exit, "P05"});
+	CHECK(sm->calls[12] == CallRecord{CallType::Entry, "StateC"});
 
-	sm.context().clear();
+	sm->clear();
 
 	// 4. Run C -> Transition to D
-	sm.handle(Event{});
-	REQUIRE(sm.context().calls.size() == 3);
-	CHECK(sm.context().calls[0] == CallRecord{CallType::Run, "StateC"});
-	CHECK(sm.context().calls[1] == CallRecord{CallType::Exit, "StateC"});
-	CHECK(sm.context().calls[2] == CallRecord{CallType::Entry, "StateD"});
+	sm.dispatch();
+	REQUIRE(sm->calls.size() == 3);
+	CHECK(sm->calls[0] == CallRecord{CallType::Run, "StateC"});
+	CHECK(sm->calls[1] == CallRecord{CallType::Exit, "StateC"});
+	CHECK(sm->calls[2] == CallRecord{CallType::Entry, "StateD"});
 }
