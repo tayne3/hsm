@@ -15,8 +15,8 @@ enum StateID {
 struct Event {};
 struct Traits {
 	using Context = std::vector<std::string>;
-	using Event   = Event;
-	using StateID = StateID;
+	using Event   = ::Event;
+	using StateID = ::StateID;
 };
 using Machine = hsm::Machine<Traits>;
 using State   = hsm::State<Traits>;

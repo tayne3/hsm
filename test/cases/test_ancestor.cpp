@@ -46,8 +46,8 @@ struct TestTraits {
 		void                    log(CallType type, const char* name) { calls.push_back({type, name}); }
 		void                    clear() { calls.clear(); }
 	};
-	using Event   = Event;
-	using StateID = StateID;
+	using Event   = ::Event;
+	using StateID = ::StateID;
 };
 
 using TestState   = hsm::State<TestTraits>;

@@ -7,7 +7,7 @@ namespace {
 enum StateID { STATE_OFF, STATE_ON };
 
 struct Traits {
-	using StateID = StateID;
+	using StateID = ::StateID;
 	struct Event {
 		virtual ~Event() = default;
 	};

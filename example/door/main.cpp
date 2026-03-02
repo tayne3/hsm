@@ -12,7 +12,7 @@ enum StateID {
 };
 
 struct Traits {
-	using StateID = StateID;
+	using StateID = ::StateID;
 	struct Event {
 		virtual ~Event() = default;
 	};

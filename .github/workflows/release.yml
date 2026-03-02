@@ -41,8 +41,8 @@ jobs:
           struct Event { virtual ~Event() = default; };
 
           struct Traits {
-              using StateID = StateID;
-              using Event   = Event;
+              using StateID = ::StateID;
+              using Event   = ::Event;
               struct Context {};
           };
 

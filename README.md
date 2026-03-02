@@ -41,7 +41,7 @@ struct Reset : Event {};
 // 2. Define State Machine Traits
 struct Traits {
 	using StateID = int;
-	using Event   = Event;
+	using Event   = ::Event;
 	struct Context {};
 };
 

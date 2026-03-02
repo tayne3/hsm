@@ -17,8 +17,8 @@ struct Event {
 	virtual ~Event() = default;
 };
 struct Traits {
-	using StateID = StateID;
-	using Event   = Event;
+	using StateID = ::StateID;
+	using Event   = ::Event;
 	struct Context {
 		std::string              agent_name;
 		std::vector<std::string> audit_log;
