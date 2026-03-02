@@ -27,8 +27,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test on ${{ matrix.os }}
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Linux - GCC & Clang Multi-Version Testing
+  # ═══════════════════════════════════════════════════════════════════════════
+  test-linux:
+    name: Linux ${{ matrix.compiler }}-${{ matrix.version }} (${{ matrix.build_type }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
 
@@ -36,12 +39,140 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            generator: "Unix Makefiles"
-          - os: windows-latest
-            generator: "Visual Studio 17 2022"
-          - os: macos-latest
-            generator: "Unix Makefiles"
+          # GCC versions
+          - { os: ubuntu-22.04, compiler: gcc, version: 9, build_type: Release }
+          - {
+              os: ubuntu-22.04,
+              compiler: gcc,
+              version: 10,
+              build_type: Release,
+            }
+          - {
+              os: ubuntu-22.04,
+              compiler: gcc,
+              version: 11,
+              build_type: Release,
+            }
+          - {
+              os: ubuntu-22.04,
+              compiler: gcc,
+              version: 12,
+              build_type: Release,
+            }
+          - {
+              os: ubuntu-24.04,
+              compiler: gcc,
+              version: 13,
+              build_type: Release,
+            }
+          - {
+              os: ubuntu-24.04,
+              compiler: gcc,
+              version: 14,
+              build_type: Release,
+            }
+          # Clang versions
+          - {
+              os: ubuntu-22.04,
+              compiler: clang,
+              version: 14,
+              build_type: Release,
+            }
+          - {
+              os: ubuntu-22.04,
+              compiler: clang,
+              version: 15,
+              build_type: Release,
+            }
+          - {
+              os: ubuntu-24.04,
+              compiler: clang,
+              version: 16,
+              build_type: Release,
+            }
+          - {
+              os: ubuntu-24.04,
+              compiler: clang,
+              version: 17,
+              build_type: Release,
+            }
+          - {
+              os: ubuntu-24.04,
+              compiler: clang,
+              version: 18,
+              build_type: Release,
+            }
+          # Debug build verification
+          - { os: ubuntu-24.04, compiler: gcc, version: 13, build_type: Debug }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.compiler }}-${{ matrix.version }}
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build
+          -G "Unix Makefiles"
+          -DCMAKE_C_COMPILER=${{ matrix.compiler }}-${{ matrix.version }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DHSM_BUILD_TEST=ON
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Test
+        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Windows - MSVC, Clang-CL, MinGW Testing
+  # ═══════════════════════════════════════════════════════════════════════════
+  test-windows:
+    name: ${{ matrix.os }} - ${{ matrix.generator }} (${{ matrix.build_type }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # MSVC
+          - {
+              os: windows-2022,
+              compiler: msvc,
+              generator: "Visual Studio 17 2022",
+              build_type: Release,
+            }
+          - {
+              os: windows-2022,
+              compiler: msvc,
+              generator: "Visual Studio 17 2022",
+              build_type: Debug,
+            }
+          - {
+              os: windows-2025,
+              compiler: msvc,
+              generator: "Visual Studio 17 2022",
+              build_type: Release,
+            }
+          - {
+              os: windows-2025,
+              compiler: msvc,
+              generator: "Visual Studio 17 2022",
+              build_type: Debug,
+            }
+          # Clang-CL (uses MSVC runtime)
+          - {
+              os: windows-2025,
+              compiler: clang-cl,
+              generator: "Visual Studio 17 2022",
+              build_type: Release,
+              toolset: ClangCL,
+            }
 
     steps:
       - name: Checkout code
@@ -51,11 +182,141 @@ jobs:
         run: >
           cmake -S . -B build
           -G "${{ matrix.generator }}"
+          ${{ matrix.toolset && format('-T {0}', matrix.toolset) || '' }}
+          -DHSM_BUILD_TEST=ON
+        shell: bash
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Test
+        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Windows - MinGW Testing (POSIX backend on Windows)
+  # ═══════════════════════════════════════════════════════════════════════════
+  test-windows-mingw:
+    name: ${{ matrix.os }} - MinGW (${{ matrix.build_type }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-2025, build_type: Release }
+          - { os: windows-2025, build_type: Debug }
+          - { os: windows-2022, build_type: Release }
+          - { os: windows-2022, build_type: Debug }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MinGW
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x64
+          static: 0
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build
+          -G "MinGW Makefiles"
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DHSM_BUILD_TEST=ON
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Test
+        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Windows - MSYS2 UCRT64 Testing (Modern Unix-like Environment)
+  # ═══════════════════════════════════════════════════════════════════════════
+  test-windows-msys2:
+    name: Windows MSYS2 UCRT64
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            make
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build
+          -G "Unix Makefiles"
           -DCMAKE_BUILD_TYPE=Release
           -DHSM_BUILD_TEST=ON
 
       - name: Build
-        run: cmake --build build --config Release
+        run: cmake --build build
 
       - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: ctest --test-dir build --output-on-failure
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # macOS - Intel & Apple Silicon Testing
+  # ═══════════════════════════════════════════════════════════════════════════
+  test-macos:
+    name: macOS ${{ matrix.os }} ${{ matrix.compiler }} (${{ matrix.build_type }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # AppleClang - Apple Silicon (arm64)
+          - { os: macos-14, compiler: appleclang, build_type: Release }
+          - { os: macos-14, compiler: appleclang, build_type: Debug }
+          - { os: macos-15, compiler: appleclang, build_type: Release }
+          - { os: macos-15, compiler: appleclang, build_type: Debug }
+          - { os: macos-26, compiler: appleclang, build_type: Release }
+          - { os: macos-26, compiler: appleclang, build_type: Debug }
+          # Homebrew GCC
+          - {
+              os: macos-26,
+              compiler: gcc-14,
+              build_type: Release,
+              cc: gcc-14,
+              cxx: g++-14,
+            }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install GCC (Homebrew)
+        if: startsWith(matrix.compiler, 'gcc')
+        run: brew install gcc@14
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build
+          -G "Unix Makefiles"
+          ${{ matrix.cc && format('-DCMAKE_C_COMPILER={0}', matrix.cc) || '' }}
+          ${{ matrix.cxx && format('-DCMAKE_CXX_COMPILER={0}', matrix.cxx) || '' }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DHSM_BUILD_TEST=ON
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Test
+        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
