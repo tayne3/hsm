@@ -7,7 +7,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
   )
 endif()
 
-project(hsm VERSION 0.1.3)
+project(hsm VERSION 0.1.4)
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 

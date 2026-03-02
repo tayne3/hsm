@@ -1,5 +1,5 @@
 /*
- * HSM Version 0.1.3
+ * HSM Version 0.1.4
  *
  * MIT License
  *
@@ -223,7 +223,7 @@ public:
 	/// @brief Request termination; subsequent events and transitions are ignored
 	void stop() { is_terminated_ = true; }
 
-	/// @brief Schedule a transition to the target state (deferred execution)
+	/// @brief Schedule a transition to the target state (deferred execution during dispatch/entries, immediate if idle)
 	/// @param target_id Identifier of the destination state
 	/// @throws std::runtime_error If called during Exit phase or target not found
 	void transition(StateID target_id) {
@@ -233,6 +233,8 @@ public:
 
 		pending_state_ = dest;
 		has_pending_   = true;
+
+		if (phase_ == Phase::Idle && !is_dispatching_) { process_pending(); }
 	}
 
 	/// @brief Dispatch an event, propagating from the active state up the parent chain

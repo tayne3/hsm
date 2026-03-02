@@ -46,7 +46,6 @@ TEST_CASE("Scope Proxy Dual-Track API", "[scope]") {
 
 		// Transition to Child
 		sm.transition(ID_Child);
-		sm.dispatch();
 
 		// Check logs: Root_Entry, Child_Entry
 		REQUIRE(sm->size() == 2);
@@ -70,7 +69,6 @@ TEST_CASE("Scope Proxy Dual-Track API", "[scope]") {
 		CHECK(sm.current_state_id() == ID_Root);
 
 		sm.transition(ID_Child);
-		sm.dispatch();
 
 		REQUIRE(sm->size() == 2);
 		CHECK(sm.context()[1] == "Child_Entry");
@@ -94,7 +92,6 @@ TEST_CASE("Scope Proxy Dual-Track API", "[scope]") {
 		CHECK(sm->back() == "Root_Entry");
 
 		sm.transition(ID_Child);
-		sm.dispatch();
 		CHECK(sm->back() == "Child_Entry");
 
 		// Dispatch event handled by Lambda Child to transition to Class GrandChild

@@ -95,15 +95,12 @@ TEST_CASE("Basic State Machine Operations", "[basic]") {
 		sm->clear();
 
 		sm.transition(ID_Active);
-		sm.dispatch();
 
-		REQUIRE(sm->calls.size() == 3);
-		// 1. Run Idle
-		// 2. Exit Idle
-		// 3. Entry Active
-		CHECK(sm->calls[0] == CallRecord{CallType::Run, "Idle"});
-		CHECK(sm->calls[1] == CallRecord{CallType::Exit, "Idle"});
-		CHECK(sm->calls[2] == CallRecord{CallType::Entry, "Active"});
+		REQUIRE(sm->calls.size() == 2);
+		// 1. Exit Idle
+		// 2. Entry Active
+		CHECK(sm->calls[0] == CallRecord{CallType::Exit, "Idle"});
+		CHECK(sm->calls[1] == CallRecord{CallType::Entry, "Active"});
 	}
 
 	SECTION("Entry Run Exit Order") {
@@ -123,24 +120,20 @@ TEST_CASE("Basic State Machine Operations", "[basic]") {
 		sm->clear();
 
 		sm.transition(ID_Idle);
-		sm.dispatch();  // Run Idle -> Exit Idle -> Entry Idle
 
-		REQUIRE(sm->calls.size() == 3);
-		CHECK(sm->calls[0] == CallRecord{CallType::Run, "Idle"});
-		CHECK(sm->calls[1] == CallRecord{CallType::Exit, "Idle"});
-		CHECK(sm->calls[2] == CallRecord{CallType::Entry, "Idle"});
+		REQUIRE(sm->calls.size() == 2);
+		CHECK(sm->calls[0] == CallRecord{CallType::Exit, "Idle"});
+		CHECK(sm->calls[1] == CallRecord{CallType::Entry, "Idle"});
 	}
 
 	SECTION("Self transition triggers exit and entry") {
 		// Equivalent to previous test_self_transition.cpp
 		sm->clear();
 		sm.transition(ID_Idle);  // Assuming Idle works similarly to 'NormalState' in the old test
-		sm.dispatch();
 
-		REQUIRE(sm->calls.size() == 3);
-		CHECK(sm->calls[0] == CallRecord{CallType::Run, "Idle"});
-		CHECK(sm->calls[1] == CallRecord{CallType::Exit, "Idle"});
-		CHECK(sm->calls[2] == CallRecord{CallType::Entry, "Idle"});
+		REQUIRE(sm->calls.size() == 2);
+		CHECK(sm->calls[0] == CallRecord{CallType::Exit, "Idle"});
+		CHECK(sm->calls[1] == CallRecord{CallType::Entry, "Idle"});
 	}
 
 	SECTION("Start with transition_to()") {
@@ -160,13 +153,11 @@ TEST_CASE("Basic State Machine Operations", "[basic]") {
 		sm_start->clear();
 
 		sm_start.transition(ID_Active);
-		sm_start.dispatch();
 
 		REQUIRE(sm_start.current_state_id() == ID_Active);
-		REQUIRE(sm_start->calls.size() == 3);
-		CHECK(sm_start->calls[0] == CallRecord{CallType::Run, "Idle"});
-		CHECK(sm_start->calls[1] == CallRecord{CallType::Exit, "Idle"});
-		CHECK(sm_start->calls[2] == CallRecord{CallType::Entry, "Active"});
+		REQUIRE(sm_start->calls.size() == 2);
+		CHECK(sm_start->calls[0] == CallRecord{CallType::Exit, "Idle"});
+		CHECK(sm_start->calls[1] == CallRecord{CallType::Entry, "Active"});
 	}
 }
 
@@ -193,8 +184,7 @@ TEST_CASE("Exception Handling", "[exception]") {
 			root.state(ID_Idle).on_exit([](TestMachine& sm) { sm.transition(ID_Active); });
 			root.state<ActiveState>(ID_Active);
 		});
-		sm.transition(ID_Active);
-		REQUIRE_THROWS_AS(sm.dispatch(), std::runtime_error);
+		REQUIRE_THROWS_AS(sm.transition(ID_Active), std::runtime_error);
 	}
 
 	SECTION("Duplicate StateID throws 1") {
